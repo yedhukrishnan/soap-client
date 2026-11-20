@@ -13,8 +13,9 @@ Requires macOS 11 or later, on Apple Silicon or Intel.
 2. Open it and drag **SOAP Client** into **Applications**.
 3. Open SOAP Client from Applications or Spotlight.
 
-The app is signed and notarized by Apple, so it opens without security warnings. The first time a
-request uses a saved secret, macOS asks for permission to use the Keychain: choose **Always Allow**.
+The app is signed and notarized by Apple, so it opens without security warnings. Saved secrets are
+protected by Touch ID (or your Mac password): macOS asks the first time a request uses a secret, and
+again after 15 minutes without using secrets.
 
 To check the download, compare its checksum with `SHA256SUMS.txt` on the release page:
 
@@ -110,7 +111,8 @@ A signed build keeps the same identity across rebuilds, so a Keychain *Always Al
 
 List available identities with `security find-identity -v -p codesigning`. An *Apple Development*
 certificate works, as does a self-signed code-signing certificate created in Keychain Access.
-Unsigned builds may ask for Keychain access again after every rebuild.
+Unsigned builds may ask for Keychain access again after every rebuild. Touch ID protection needs a
+release build with the provisioning profile (see below); other builds use the login keychain.
 
 ### Releasing (macOS)
 
@@ -118,7 +120,9 @@ Unsigned builds may ask for Keychain access again after every rebuild.
 Application* certificate, notarizes and staples both the app and the disk image, verifies them with
 Gatekeeper, and writes `release/<version>/` with the `.dmg` and `SHA256SUMS.txt`.
 
-It needs an App Store Connect API key (role *Developer*) stored outside the repo:
+It needs a Developer ID provisioning profile for `dev.soapclient.app` at
+`~/.appstoreconnect/soap-client.provisionprofile` (it grants the keychain entitlement used for Touch ID),
+and an App Store Connect API key (role *Developer*) stored outside the repo:
 `~/.appstoreconnect/AuthKey_<KEYID>.p8` and its Issuer ID in `~/.appstoreconnect/issuer-id`
 (or `APPLE_API_KEY_PATH`, `APPLE_API_KEY`, `APPLE_API_ISSUER` in the environment), plus
 `rustup target add x86_64-apple-darwin`.
@@ -138,9 +142,9 @@ To publish a release:
 
 ## Privacy and security
 
-- **Your passwords stay in your Keychain.** Secret values are stored only in the macOS Keychain or
-  the Linux system keyring, never in project files, and the app only uses its own entry
-  (`dev.soapclient.app`).
+- **Your passwords stay in your Keychain.** Secret values are stored only in the macOS Keychain
+  (protected by Touch ID) or the Linux system keyring, never in project files, and the app only uses
+  its own entries (`dev.soapclient.app`).
 - **Shared project files are safe to open.** If a project file would use secrets saved on your
   computer, the app asks first.
 - **Imports stay where they belong.** A WSDL from the web only loads other web documents, and only
