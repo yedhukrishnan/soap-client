@@ -135,6 +135,8 @@ export interface Session {
 
 export interface SecretBackend {
   persistent: boolean;
+  /** macOS asks for Touch ID (or the Mac password) to read secrets. */
+  biometric: boolean;
   name: string;
 }
 

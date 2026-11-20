@@ -4146,6 +4146,7 @@ checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 name = "soap-client"
 version = "0.1.0"
 dependencies = [
+ "apple-native-keyring-store",
  "keyring",
  "keyring-core",
  "serde",

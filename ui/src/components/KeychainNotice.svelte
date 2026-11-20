@@ -4,6 +4,7 @@
   let { notice }: { notice: KeychainNotice } = $props();
 
   const mac = $derived(app.secretBackend?.name.includes("macOS") ?? false);
+  const touchId = $derived(app.secretBackend?.biometric ?? false);
   const SERVICE = "dev.soapclient.app";
 
   function focus(n: HTMLElement) {
@@ -28,7 +29,13 @@
       are only sent to your requests' endpoints.
     </p>
 
-    {#if mac}
+    {#if touchId}
+      <h4>Touch ID</h4>
+      <p>
+        macOS asks for Touch ID (or your Mac password) the first time a request uses a secret, and again after
+        15 minutes without using secrets.
+      </p>
+    {:else if mac}
       <h4>If macOS asks for permission</h4>
       <p>
         You may see <i>“SOAP Client wants to use your confidential information stored in “{SERVICE}”…”</i>.
