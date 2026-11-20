@@ -1,6 +1,6 @@
 [package]
 name = "soap-client"
-version = "0.2.1"
+version = "0.2.2"
 description = "A lightweight SOAP client"
 authors = ["Yedhu Krishnan <dev@yedhu.me>"]
 homepage = "https://yedhu.me"
