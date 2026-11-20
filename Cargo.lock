@@ -4144,7 +4144,7 @@ checksum = "3244542535d5de959d90ec55d1b5ff0fd2bb7b1310223907d5f11932847f7b59"
 
 [[package]]
 name = "soap-client"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "apple-native-keyring-store",
  "keyring",
@@ -4161,7 +4161,7 @@ dependencies = [
 
 [[package]]
 name = "soap-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.23.1",
  "chrono",
