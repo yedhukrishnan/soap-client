@@ -5,6 +5,9 @@
 #   - A "Developer ID Application" identity in src-tauri/tauri.signing.json (git-ignored).
 #   - An App Store Connect API key at ~/.appstoreconnect/AuthKey_<KEYID>.p8 (chmod 600).
 #   - The key's Issuer ID in ~/.appstoreconnect/issuer-id, or in $APPLE_API_ISSUER.
+#   - A Developer ID provisioning profile for dev.soapclient.app at
+#     ~/.appstoreconnect/soap-client.provisionprofile (or $SOAP_PROVISIONING_PROFILE).
+#     It grants the keychain entitlement that lets secrets use Touch ID.
 #
 # Usage:  npm run release:mac
 # Output: release/<version>/SOAP-Client-<version>-macOS-universal.dmg and SHA256SUMS.txt
@@ -46,6 +49,48 @@ if [[ -n "$(git status --porcelain)" && "${ALLOW_DIRTY:-}" != "1" ]]; then
   die "working tree has uncommitted changes (commit them, or set ALLOW_DIRTY=1)"
 fi
 
+# ---- provisioning profile -> entitlements (Touch ID keychain) ----
+BUNDLE_ID="$(node -p "require('./src-tauri/tauri.conf.json').identifier")"
+PROFILE="${SOAP_PROVISIONING_PROFILE:-${KEY_DIR}/soap-client.provisionprofile}"
+[[ -f "$PROFILE" ]] || die "no provisioning profile at ${PROFILE}"
+GEN="target/release-config"
+mkdir -p "$GEN"
+security cms -D -i "$PROFILE" > "${GEN}/profile.plist" 2>/dev/null || die "can't read provisioning profile ${PROFILE}"
+pb() { /usr/libexec/PlistBuddy -c "Print :$1" "${GEN}/profile.plist" 2>/dev/null; }
+TEAM_ID="$(pb 'TeamIdentifier:0')"
+APP_ID="$(pb 'Entitlements:com.apple.application-identifier')"
+[[ "$APP_ID" == "${TEAM_ID}.${BUNDLE_ID}" ]] || die "profile is for '${APP_ID}', expected '<team>.${BUNDLE_ID}'"
+[[ "$(pb 'ProvisionsAllDevices')" == "true" ]] || die "profile is not a Developer ID profile"
+EXPIRES="$(plutil -extract ExpirationDate raw -o - "${GEN}/profile.plist")"   # ISO 8601, UTC
+[[ "$EXPIRES" > "$(date -u +%Y-%m-%dT%H:%M:%SZ)" ]] || die "provisioning profile expired (${EXPIRES})"
+SIGN_ID="$(node -p "require('./src-tauri/tauri.signing.json').bundle.macOS.signingIdentity")"
+security find-identity -v -p codesigning | grep "$SIGN_ID" | grep -q "(${TEAM_ID})" \
+  || die "signing identity isn't from the profile's team"
+
+cat > "${GEN}/entitlements.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.application-identifier</key>
+  <string>${APP_ID}</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>${TEAM_ID}</string>
+  <key>keychain-access-groups</key>
+  <array>
+    <string>${APP_ID}</string>
+  </array>
+</dict>
+</plist>
+PLIST
+node -e '
+  const [signing, ents, profile, out] = process.argv.slice(1);
+  const c = JSON.parse(require("fs").readFileSync(signing, "utf8"));
+  c.bundle.macOS.entitlements = ents;
+  c.bundle.macOS.files = { "embedded.provisionprofile": profile };
+  require("fs").writeFileSync(out, JSON.stringify(c, null, 2));
+' src-tauri/tauri.signing.json "$(pwd)/${GEN}/entitlements.plist" "$PROFILE" "${GEN}/tauri.release.json"
+
 VERSION="$(node -p "require('./package.json').version")"
 for f in src-tauri/tauri.conf.json src-tauri/Cargo.toml; do
   grep -Eq "\"?version\"? *[:=] *\"${VERSION}\"" "$f" || die "version in $f doesn't match package.json (${VERSION})"
@@ -66,7 +111,7 @@ detach_leftovers() {
 # ---- build, sign and notarize the app ----
 say "Building SOAP Client ${VERSION} (universal), signing and notarizing the app"
 detach_leftovers
-build() { npx tauri build --config src-tauri/tauri.signing.json --target universal-apple-darwin; }
+build() { npx tauri build --config "${GEN}/tauri.release.json" --target universal-apple-darwin; }
 if ! build; then
   say "Build failed; cleaning up and retrying once (the DMG step is occasionally flaky)"
   detach_leftovers
@@ -88,6 +133,9 @@ xcrun stapler staple "$DMG"
 # ---- verify ----
 say "Verifying"
 codesign --verify --deep --strict "$APP"
+[[ -f "${APP}/Contents/embedded.provisionprofile" ]] || die "provisioning profile not embedded"
+codesign -d --entitlements - --xml "$APP" 2>/dev/null | grep -q "keychain-access-groups" \
+  || die "keychain entitlement missing from the signature"
 xcrun stapler validate "$APP"
 xcrun stapler validate "$DMG"
 spctl -a -t exec -vv "$APP" 2>&1 | tee /dev/stderr | grep -q "source=Notarized Developer ID" \
