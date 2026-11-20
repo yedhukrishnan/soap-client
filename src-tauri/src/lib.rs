@@ -1,9 +1,11 @@
 mod commands;
+mod menu;
 mod secrets;
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .menu(|app| menu::build(app))
         .manage(commands::InFlight::default())
         .manage(secrets::Secrets::default())
         .invoke_handler(tauri::generate_handler![

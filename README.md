@@ -66,3 +66,6 @@ Then `npm run tauri build` produces `.deb`, `.rpm` and AppImage bundles.
 - WSDL 2.0, MTOM/attachments and WS-Addressing are not supported
 - Without a Secret Service (some minimal Linux setups) secrets are kept in memory for the current run only
 - Unsigned dev builds: macOS may ask again for Keychain access after each rebuild
+
+## Author
+Yedhu Krishnan · [yedhu.me](https://yedhu.me) · dev@yedhu.me

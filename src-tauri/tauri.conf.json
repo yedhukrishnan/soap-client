@@ -28,6 +28,9 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
+    "publisher": "Yedhu Krishnan",
+    "copyright": "© 2026 Yedhu Krishnan",
+    "homepage": "https://yedhu.me",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
