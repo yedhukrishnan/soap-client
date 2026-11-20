@@ -3,6 +3,37 @@
 A lightweight, SoapUI-style desktop client for SOAP web services, for macOS and Linux.
 Built with Rust, Tauri 2 and Svelte 5.
 
+## Download and install
+
+### macOS
+
+Requires macOS 11 or later, on Apple Silicon or Intel.
+
+1. Download the latest `.dmg` from the [Releases page](https://github.com/yedhukrishnan/soap-client/releases/latest).
+2. Open it and drag **SOAP Client** into **Applications**.
+3. Open SOAP Client from Applications or Spotlight.
+
+The app is signed and notarized by Apple, so it opens without security warnings. The first time a
+request uses a saved secret, macOS asks for permission to use the Keychain: choose **Always Allow**.
+
+To check the download, compare its checksum with `SHA256SUMS.txt` on the release page:
+
+```sh
+shasum -a 256 ~/Downloads/SOAP-Client-*-macOS-universal.dmg
+```
+
+**Updating:** download the new version and replace the app in Applications. Your projects,
+environments and saved secrets are kept.
+
+**Uninstalling:** delete the app, and optionally its data: the folder
+`~/Library/Application Support/dev.soapclient.app` and, in Keychain Access, the entries named
+`dev.soapclient.app`.
+
+### Linux
+
+There are no prebuilt Linux packages yet. You can [build from source](#building), which produces
+`.deb`, `.rpm` and AppImage packages.
+
 ## Features
 
 - **WSDL import** from a URL or file. Imported WSDLs and schemas (`wsdl:import`, `xsd:import`,
@@ -91,6 +122,19 @@ It needs an App Store Connect API key (role *Developer*) stored outside the repo
 `~/.appstoreconnect/AuthKey_<KEYID>.p8` and its Issuer ID in `~/.appstoreconnect/issuer-id`
 (or `APPLE_API_KEY_PATH`, `APPLE_API_KEY`, `APPLE_API_ISSUER` in the environment), plus
 `rustup target add x86_64-apple-darwin`.
+
+To publish a release:
+
+1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and commit.
+2. Run `npm run release:mac`.
+3. Tag and publish:
+
+   ```sh
+   git push origin main
+   git tag v<version> && git push origin v<version>
+   gh release create v<version> release/<version>/*.dmg release/<version>/SHA256SUMS.txt \
+     --title "SOAP Client <version>" --notes-file <release-notes.md>
+   ```
 
 ## Privacy and security
 
