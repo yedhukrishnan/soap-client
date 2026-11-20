@@ -19,7 +19,9 @@ A lightweight, SoapUI-style desktop SOAP client for macOS and Linux, built with 
   are highlighted in the editor and block sending.
 - **Secrets**: secret variables are stored in the OS credential store (macOS Keychain, Linux Secret
   Service) — never in the project file or the autosaved session — and are masked as `••••••` in the
-  sent-request view. Literal passwords typed into a request body (`<password>`, `<token>`, …) or the
+  sent-request view. The app only ever reads its own entries (service `dev.soapclient.app`; the service
+  name is fixed in code), never other Keychain items. A one-time note explains the macOS Keychain
+  prompt before it first appears. Literal passwords typed into a request body (`<password>`, `<token>`, …) or the
   Auth tab are detected, with a one-click *Move to secret variable*.
 
 Requests can be duplicated (⧉ in the sidebar, or `⌘/Ctrl+D`); you're asked for the new name.

@@ -55,6 +55,20 @@ export interface SecretPrompt {
 }
 
 const AUTOSAVE_MS = 700;
+const KEYCHAIN_ACK = "soap-client.keychain-ack";
+
+export class KeychainDeclined extends Error {
+  constructor() {
+    super("Keychain access was not allowed, so secret variables can't be used for this action.");
+  }
+}
+
+/** The explanatory note shown before the OS keychain is first used. */
+export interface KeychainNotice {
+  /** "consent" gates an action; "info" is just the note, reopened from the Variables dialog. */
+  mode: "consent" | "info";
+  resolve: (ok: boolean) => void;
+}
 
 export function basename(p: string) {
   return p.split(/[\\/]/).pop() || p;
@@ -76,6 +90,8 @@ class AppState {
   secretBackend = $state<SecretBackend | null>(null);
   /** keychain key -> has a stored value */
   secretStatus = $state<Record<string, boolean>>({});
+  keychainNotice = $state<KeychainNotice | null>(null);
+  private consentPending: Promise<boolean> | null = null;
   /** Bumped on every edit; drives autosave. */
   revision = $state(0);
   restored = $state(false);
@@ -241,6 +257,13 @@ class AppState {
     const req = this.request(id);
     if (!req || this.runs[id]?.sending) return;
     const callId = uid();
+    const usesSecret = [...this.effectiveVars.values()].some(
+      (v) => v.secret && JSON.stringify(req.spec).match(new RegExp(`\\{\\{\\s*${v.name.replace(/[.]/g, "\\.")}\\s*\\}\\}`)),
+    );
+    if (usesSecret && !(await this.ensureKeychainConsent())) {
+      this.runs[id] = { sending: false, error: new KeychainDeclined().message };
+      return;
+    }
     this.runs[id] = { ...this.runs[id], sending: true, callId, error: undefined };
     try {
       const response = await api.sendRequest(callId, $state.snapshot(req.spec), this.bindings());
@@ -282,7 +305,6 @@ class AppState {
     this.runs = {};
     this.secretStatus = {};
     this.revision++;
-    this.refreshSecretStatus();
   }
 
   async newProject() {
@@ -361,7 +383,7 @@ class AppState {
     const keys: string[] = [];
     for (const scope of ["project", ...this.project.environments.map((e) => e.id)])
       for (const v of this.varsOf(scope)) if (v.secret) keys.push(this.secretKey(scope, v.name));
-    if (!keys.length) return;
+    if (!keys.length || !this.keychainAcknowledged()) return;
     try {
       const status = await api.secretStatus(keys);
       keys.forEach((k, i) => (this.secretStatus[k] = status[i]));
@@ -370,8 +392,40 @@ class AppState {
     }
   }
 
+  // ---- keychain consent ----
+
+  keychainAcknowledged() {
+    return !this.secretBackend?.persistent || localStorage.getItem(KEYCHAIN_ACK) === "1";
+  }
+
+  /** Show the keychain note once before the first keychain access. False if the user cancels. */
+  ensureKeychainConsent(): Promise<boolean> {
+    if (this.keychainAcknowledged()) return Promise.resolve(true);
+    this.consentPending ??= new Promise<boolean>((resolve) => {
+      this.keychainNotice = {
+        mode: "consent",
+        resolve: (ok) => {
+          if (ok) localStorage.setItem(KEYCHAIN_ACK, "1");
+          this.keychainNotice = null;
+          this.consentPending = null;
+          resolve(ok);
+        },
+      };
+    });
+    return this.consentPending;
+  }
+
+  showKeychainInfo() {
+    this.keychainNotice = { mode: "info", resolve: () => (this.keychainNotice = null) };
+  }
+
+  private async requireKeychain() {
+    if (!(await this.ensureKeychainConsent())) throw new KeychainDeclined();
+  }
+
   async setSecretValue(scope: Scope, name: string, value: string) {
     const key = this.secretKey(scope, name);
+    await this.requireKeychain();
     await api.secretSet(key, value);
     this.secretStatus[key] = true;
   }
@@ -379,11 +433,13 @@ class AppState {
   /** Toggle a variable between plain and secret, moving its value accordingly. */
   async setSecret(scope: Scope, v: Variable, secret: boolean) {
     if (v.secret === secret) return;
+    await this.requireKeychain();
     const key = this.secretKey(scope, v.name);
     if (secret) {
       if (v.value) await this.setSecretValue(scope, v.name, v.value);
       v.value = "";
     } else {
+      await this.requireKeychain();
       await api.secretDelete([key]);
       delete this.secretStatus[key];
     }
@@ -396,6 +452,7 @@ class AppState {
     if (v.secret) {
       const from = this.secretKey(scope, v.name);
       const to = this.secretKey(scope, name);
+      await this.requireKeychain();
       await api.secretRename(from, to);
       this.secretStatus[to] = this.secretStatus[from] ?? false;
       delete this.secretStatus[from];
@@ -405,7 +462,10 @@ class AppState {
   }
 
   async removeVariable(scope: Scope, v: Variable) {
-    if (v.secret) await api.secretDelete([this.secretKey(scope, v.name)]);
+    if (v.secret) {
+      await this.requireKeychain();
+      await api.secretDelete([this.secretKey(scope, v.name)]);
+    }
     const list = this.varsOf(scope);
     list.splice(list.indexOf(v), 1);
     this.markDirty();
@@ -424,7 +484,10 @@ class AppState {
     if (!(await ask(`Delete environment "${env.name}" and its ${env.variables.length} variable(s)?`, { title: "Delete environment", kind: "warning" })))
       return false;
     const keys = env.variables.filter((v) => v.secret).map((v) => this.secretKey(id, v.name));
-    if (keys.length) await api.secretDelete(keys);
+    if (keys.length) {
+      await this.requireKeychain();
+      await api.secretDelete(keys);
+    }
     this.project.environments = this.project.environments.filter((e) => e.id !== id);
     if (this.project.activeEnvironment === id) this.project.activeEnvironment = null;
     this.markDirty();
@@ -438,6 +501,7 @@ class AppState {
 
   /** Store `value` as secret variable `name` in `scope` (creating or updating it). */
   async storeSecretVariable(scope: Scope, name: string, value: string) {
+    await this.requireKeychain(); // before touching the project, so Cancel changes nothing
     const list = this.varsOf(scope);
     let v = list.find((x) => x.name === name);
     if (!v) {
@@ -464,7 +528,6 @@ class AppState {
         const ids = new Set(s.project.requests.map((r) => r.id));
         this.openTabs = s.openTabs.filter((id) => ids.has(id));
         this.activeId = s.activeId && ids.has(s.activeId) ? s.activeId : (this.openTabs[0] ?? null);
-        this.refreshSecretStatus();
       }
     } catch (e) {
       await message(String(e), { title: "Session not restored", kind: "warning" });

@@ -3,6 +3,7 @@
   import { onMount } from "svelte";
   import DuplicateDialog from "./components/DuplicateDialog.svelte";
   import ImportWsdlDialog from "./components/ImportWsdlDialog.svelte";
+  import KeychainNotice from "./components/KeychainNotice.svelte";
   import RequestPane from "./components/RequestPane.svelte";
   import RequestTabBar from "./components/RequestTabBar.svelte";
   import ResponsePane from "./components/ResponsePane.svelte";
@@ -133,6 +134,10 @@
 
 {#if app.secretPrompt}
   <SecretPromptDialog prompt={app.secretPrompt} />
+{/if}
+
+{#if app.keychainNotice}
+  <KeychainNotice notice={app.keychainNotice} />
 {/if}
 
 {#if app.duplicating}

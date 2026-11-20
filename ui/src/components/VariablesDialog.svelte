@@ -22,7 +22,7 @@
     try {
       await fn();
     } catch (e) {
-      error = String(e);
+      error = e instanceof Error ? e.message : String(e);
     }
   }
 
@@ -170,8 +170,12 @@
                     <input
                       type="password"
                       autocomplete="off"
-                      placeholder={app.secretStatus[key] ? "•••••• stored — type to replace" : "Not set — type a value and press Enter"}
-                      class:unset={!app.secretStatus[key]}
+                      placeholder={!app.keychainAcknowledged()
+                        ? "Secret — type a value and press Enter"
+                        : app.secretStatus[key]
+                          ? "•••••• stored — type to replace"
+                          : "Not set — type a value and press Enter"}
+                      class:unset={app.keychainAcknowledged() && !app.secretStatus[key]}
                       onchange={(e) => commitSecret(v, e.currentTarget)}
                       onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                     />
@@ -214,6 +218,9 @@
           {app.secretBackend.persistent
             ? `Secrets: ${app.secretBackend.name}`
             : "No keychain available — secrets last until the app quits"}
+          {#if app.secretBackend.persistent}
+            · <button class="link" onclick={() => app.showKeychainInfo()}>About secret storage</button>
+          {/if}
         </span>
       {/if}
     </footer>

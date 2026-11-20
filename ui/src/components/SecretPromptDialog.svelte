@@ -24,7 +24,7 @@
       prompt.apply(`{{${name.trim()}}}`);
       close();
     } catch (err) {
-      failure = String(err);
+      failure = err instanceof Error ? err.message : String(err);
     } finally {
       busy = false;
     }
