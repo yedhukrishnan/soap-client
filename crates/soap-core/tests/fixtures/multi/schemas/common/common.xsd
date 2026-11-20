@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<!-- Imports messages.xsd back: cycles must not loop forever. -->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:common" elementFormDefault="qualified">
+  <xsd:import namespace="urn:messages" schemaLocation="../messages.xsd"/>
+  <xsd:element name="auth">
+    <xsd:complexType>
+      <xsd:sequence><xsd:element name="user" type="xsd:string"/></xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>

@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<wsdl:definitions targetNamespace="urn:x" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <wsdl:types><xsd:schema><xsd:import namespace="urn:y" schemaLocation="missing.xsd"/></xsd:schema></wsdl:types>
+</wsdl:definitions>

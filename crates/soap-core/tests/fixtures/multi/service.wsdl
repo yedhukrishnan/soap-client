@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<!-- Service + binding only; messages/portType live in an imported WSDL. -->
+<wsdl:definitions targetNamespace="urn:svc" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:svc="urn:svc" xmlns:abs="urn:abstract">
+  <wsdl:import namespace="urn:abstract" location="abstract.wsdl"/>
+  <wsdl:binding name="EchoBinding" type="abs:EchoPort">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="Echo">
+      <soap:operation soapAction="urn:Echo"/>
+      <wsdl:input><soap:body use="literal"/></wsdl:input>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="EchoService">
+    <wsdl:port name="EchoPort" binding="svc:EchoBinding">
+      <soap:address location="http://localhost/echo"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

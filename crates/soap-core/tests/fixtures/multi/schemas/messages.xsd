@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:messages"
+  xmlns:c="urn:common" elementFormDefault="qualified">
+  <xsd:import namespace="urn:common" schemaLocation="common/common.xsd"/>
+  <xsd:include schemaLocation="message-types.xsd"/>
+  <xsd:element name="EchoRequest">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element ref="c:auth"/>
+        <xsd:element name="text" type="xsd:string"/>
+        <xsd:element name="mode" xmlns:m="urn:messages" type="m:Mode"/>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+</xsd:schema>

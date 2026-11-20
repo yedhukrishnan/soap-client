@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<wsdl:definitions targetNamespace="urn:abstract" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+  xmlns:abs="urn:abstract" xmlns:m="urn:messages" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <wsdl:types>
+    <xsd:schema>
+      <xsd:import namespace="urn:messages" schemaLocation="schemas/messages.xsd"/>
+    </xsd:schema>
+  </wsdl:types>
+  <wsdl:message name="EchoIn"><wsdl:part name="body" element="m:EchoRequest"/></wsdl:message>
+  <wsdl:portType name="EchoPort">
+    <wsdl:operation name="Echo"><wsdl:input message="abs:EchoIn"/></wsdl:operation>
+  </wsdl:portType>
+</wsdl:definitions>
