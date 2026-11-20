@@ -21,7 +21,32 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "connect-src": "ipc: http://ipc.localhost",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:",
+        "worker-src": "'self' blob:",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "connect-src": "ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420",
+        "script-src": "'self' http://localhost:1420",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:",
+        "worker-src": "'self' blob:",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "frame-src": "'none'",
+        "form-action": "'none'"
+      }
     }
   },
   "bundle": {
@@ -29,8 +54,8 @@
     "targets": "all",
     "category": "DeveloperTool",
     "publisher": "Yedhu Krishnan",
-    "copyright": "© 2026 Yedhu Krishnan",
-    "homepage": "https://yedhu.me",
+    "copyright": "\u00a9 2026 Yedhu Krishnan \u00b7 MIT License",
+    "homepage": "https://github.com/yedhukrishnan/soap-client",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -39,7 +64,13 @@
       "icons/icon.ico"
     ],
     "linux": {
-      "deb": { "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"] }
-    }
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
+    },
+    "license": "MIT"
   }
 }

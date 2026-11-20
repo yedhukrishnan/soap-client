@@ -140,6 +140,11 @@ async fn project_round_trip() {
     let spath = dir.path().join("state/session.json");
     let sess = Session { project: p.clone(), path: None, dirty: true, open_tabs: vec!["r1".into()], active_id: Some("r1".into()) };
     session::save(&sess, &spath).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&spath).unwrap().permissions().mode() & 0o777, 0o600, "session must be private");
+    }
     assert!(!std::fs::read_to_string(&spath).unwrap().contains("leaked?"));
     let back = session::load(&spath).unwrap().unwrap();
     assert!(back.dirty && back.open_tabs == ["r1"] && back.project.wsdls[0].document.is_some());

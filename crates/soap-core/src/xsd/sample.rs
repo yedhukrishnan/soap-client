@@ -246,12 +246,11 @@ impl<'s, 'a, 'i> SampleGenerator<'s, 'a, 'i> {
                 }
                 "complexContent" => {
                     let Some(der) = xsd_children(c).next() else { continue };
-                    if der.tag_name().name() == "extension" {
-                        if let Some(b) = der.attribute("base") {
-                            if let TypeDef::Complex(base) =
+                    if der.tag_name().name() == "extension"
+                        && let Some(b) = der.attribute("base")
+                            && let TypeDef::Complex(base) =
                                 self.lookup_type(&resolve_qname(der, b))
-                            {
-                                if !self.stack.contains(&base.id()) {
+                                && !self.stack.contains(&base.id()) {
                                     self.stack.push(base.id());
                                     match self.complex_type(base, level, attrs) {
                                         Content::Children(s) => buf.push_str(&s),
@@ -260,9 +259,6 @@ impl<'s, 'a, 'i> SampleGenerator<'s, 'a, 'i> {
                                     }
                                     self.stack.pop();
                                 }
-                            }
-                        }
-                    }
                     for p in xsd_children(der) {
                         match p.tag_name().name() {
                             "attribute" | "attributeGroup" | "anyAttribute" => {
@@ -370,16 +366,14 @@ impl<'s, 'a, 'i> SampleGenerator<'s, 'a, 'i> {
             return "?".into();
         }
         if let Some(r) = xsd_children(st).find(|c| is_xsd(c, "restriction")) {
-            if let Some(e) = xsd_children(r).find(|c| is_xsd(c, "enumeration")) {
-                if let Some(v) = e.attribute("value") {
+            if let Some(e) = xsd_children(r).find(|c| is_xsd(c, "enumeration"))
+                && let Some(v) = e.attribute("value") {
                     return xml_escape(v);
                 }
-            }
-            if let Some(b) = r.attribute("base") {
-                if let Some(base) = self.idx.simple_types.get(&resolve_qname(r, b)) {
+            if let Some(b) = r.attribute("base")
+                && let Some(base) = self.idx.simple_types.get(&resolve_qname(r, b)) {
                     return self.simple_value(*base, depth + 1);
                 }
-            }
         }
         "?".into()
     }

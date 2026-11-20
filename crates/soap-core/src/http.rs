@@ -80,8 +80,11 @@ pub struct ResponseData {
 /// Turn a request spec into concrete URL/headers/body. Pure, so it is easy to test.
 pub fn prepare(spec: &RequestSpec) -> Result<PreparedRequest> {
     let url = spec.endpoint.trim().to_string();
+    if url.is_empty() {
+        return Err(Error::Http("enter an endpoint URL".into()));
+    }
     if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return Err(Error::Http(format!("endpoint must start with http:// or https://, got '{url}'")));
+        return Err(Error::Http(format!("the endpoint must start with http:// or https:// (got '{url}')")));
     }
 
     let mut body = spec.body.clone();
@@ -162,6 +165,24 @@ pub fn masked(prepared: &PreparedRequest, spec: &RequestSpec, secrets: &[String]
 
 /// Send a request. `secrets` are values (e.g. secret variables) that must be masked
 /// in the returned copy of the sent request.
+/// Largest response body accepted.
+pub const MAX_RESPONSE_BYTES: u64 = 100 * 1024 * 1024;
+
+/// Read a body, failing once it exceeds `limit` bytes (instead of exhausting memory).
+async fn read_limited(mut resp: reqwest::Response, limit: u64) -> Result<Vec<u8>> {
+    if resp.content_length().is_some_and(|n| n > limit) {
+        return Err(Error::Http(format!("response is larger than {} MB", limit >> 20)));
+    }
+    let mut buf = Vec::new();
+    while let Some(chunk) = resp.chunk().await? {
+        if buf.len() as u64 + chunk.len() as u64 > limit {
+            return Err(Error::Http(format!("response is larger than {} MB", limit >> 20)));
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
+}
+
 pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData> {
     let prepared = prepare(spec)?;
     let client = reqwest::Client::builder()
@@ -183,7 +204,7 @@ pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData
         .iter()
         .map(|(n, v)| (n.to_string(), String::from_utf8_lossy(v.as_bytes()).into_owned()))
         .collect();
-    let bytes = resp.bytes().await?;
+    let bytes = read_limited(resp, MAX_RESPONSE_BYTES).await?;
     let elapsed_ms = start.elapsed().as_millis() as u64;
     let body = String::from_utf8_lossy(&bytes).into_owned();
 
@@ -200,7 +221,7 @@ pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData
 }
 
 /// Download a document (e.g. a WSDL) over HTTP(S).
-pub async fn fetch_text(url: &str, accept_invalid_certs: bool) -> Result<String> {
+pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .tls_danger_accept_invalid_certs(accept_invalid_certs)
@@ -210,5 +231,6 @@ pub async fn fetch_text(url: &str, accept_invalid_certs: bool) -> Result<String>
     if !status.is_success() {
         return Err(Error::Http(format!("GET {url} returned {status}")));
     }
-    Ok(resp.text().await?)
+    let bytes = read_limited(resp, limit).await?;
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
 }

@@ -14,6 +14,8 @@ use crate::{Error, NS_WSDL, NS_XSD, Result};
 
 /// Safety limit against runaway import graphs.
 const MAX_DOCUMENTS: usize = 250;
+/// Largest WSDL/XSD document accepted (local or downloaded).
+pub const MAX_DOCUMENT_BYTES: u64 = 20 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,10 +54,20 @@ impl Location {
     }
 
     /// Resolve a (possibly relative) reference found inside this document.
+    ///
+    /// Security: a document fetched over http(s) may only reference other http(s)
+    /// documents. Otherwise a remote WSDL could make the app read local files
+    /// (`file:///…`) into the project.
     fn join(&self, reference: &str) -> Result<Location> {
         let r = reference.trim();
         if r.starts_with("http://") || r.starts_with("https://") || r.starts_with("file://") {
-            return Location::parse(r);
+            let loc = Location::parse(r)?;
+            if matches!((self, &loc), (Location::Url(_), Location::File(_))) {
+                return Err(Error::Wsdl(format!(
+                    "{self} references the local file '{r}'; documents downloaded from the web may only import other web documents"
+                )));
+            }
+            return Ok(loc);
         }
         match self {
             Location::Url(base) => base
@@ -76,9 +88,16 @@ impl Location {
 
     async fn fetch(&self) -> Result<String> {
         match self {
-            Location::Url(u) => crate::http::fetch_text(u.as_str(), false).await,
-            Location::File(p) => std::fs::read_to_string(p)
-                .map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display()))),
+            Location::Url(u) => crate::http::fetch_text(u.as_str(), false, MAX_DOCUMENT_BYTES).await,
+            Location::File(p) => {
+                let size = std::fs::metadata(p)
+                    .map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display())))?
+                    .len();
+                if size > MAX_DOCUMENT_BYTES {
+                    return Err(Error::Io(format!("{} is larger than {} MB", p.display(), MAX_DOCUMENT_BYTES >> 20)));
+                }
+                std::fs::read_to_string(p).map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display())))
+            }
         }
     }
 }
@@ -105,6 +124,7 @@ pub async fn load_with_imports(source: &str) -> Result<(String, Vec<ImportedDoc>
         let text = loc.fetch().await.map_err(|e| {
             Error::Wsdl(format!("cannot load imported document {loc} (referenced from {referrer}): {e}"))
         })?;
+        ensure_schema_or_wsdl(&text, &loc)?;
         for r in references(&text, &loc)? {
             if seen.insert(r.clone()) {
                 queue.push((r, loc.to_string()));
@@ -113,6 +133,20 @@ pub async fn load_with_imports(source: &str) -> Result<(String, Vec<ImportedDoc>
         imports.push(ImportedDoc { location: loc.to_string(), text });
     }
     Ok((main, imports))
+}
+
+/// Imported documents must be XML Schemas or WSDLs. Anything else (e.g. some other
+/// XML file on disk that a malicious WSDL points at) is rejected, not stored.
+fn ensure_schema_or_wsdl(text: &str, loc: &Location) -> Result<()> {
+    let opts = roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() };
+    let doc = Document::parse_with_options(text, opts).map_err(|e| Error::Xml(format!("{loc}: {e}")))?;
+    let root = doc.root_element();
+    match (root.tag_name().namespace(), root.tag_name().name()) {
+        (Some(NS_XSD), "schema") | (Some(NS_WSDL), "definitions") => Ok(()),
+        (_, name) => Err(Error::Wsdl(format!(
+            "imported document {loc} is not an XML Schema or WSDL (root element <{name}>)"
+        ))),
+    }
 }
 
 /// Locations referenced by a WSDL or XSD document.

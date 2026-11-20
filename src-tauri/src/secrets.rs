@@ -102,11 +102,10 @@ impl Secrets {
             return;
         }
         st.index_loaded = true;
-        if let Some(p) = self.index_path.get() {
-            if let Ok(json) = std::fs::read_to_string(p) {
+        if let Some(p) = self.index_path.get()
+            && let Ok(json) = std::fs::read_to_string(p) {
                 st.index = serde_json::from_str(&json).unwrap_or_default();
             }
-        }
     }
 
     fn save_index(&self, st: &State) {
@@ -115,7 +114,7 @@ impl Secrets {
                 let _ = std::fs::create_dir_all(dir);
             }
             if let Ok(json) = serde_json::to_string(&st.index) {
-                let _ = std::fs::write(p, json);
+                let _ = soap_core::project::write_private(p, &json);
             }
         }
     }
@@ -251,6 +250,18 @@ impl Secrets {
             self.delete(&[from.to_string()])?;
         }
         Ok(())
+    }
+
+    /// Whether any secret is stored for this project (from the names-only index).
+    pub fn has_project(&self, project: &str) -> bool {
+        let mut st = self.state.lock().unwrap();
+        if !self.persistent {
+            return st.memory.keys().any(|k| k.starts_with(&format!("{project}:")));
+        }
+        self.load_index(&mut st);
+        let prefix = format!("{project}:");
+        st.index.iter().any(|k| k.starts_with(&prefix))
+            || self.existing_accounts().iter().any(|a| a.starts_with(&prefix) || *a == vault_account(project))
     }
 
     /// Which keys have a stored value. Never reads secret data (no prompts).

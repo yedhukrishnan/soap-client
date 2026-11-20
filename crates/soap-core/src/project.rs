@@ -141,11 +141,34 @@ pub fn hydrate(p: &mut Project) -> Result<()> {
 
 /// Write to a sibling temp file then rename, so a crash never leaves a truncated file.
 pub(crate) fn write_atomic(path: &Path, contents: &str) -> Result<()> {
+    write_impl(path, contents, false)
+}
+
+/// Like [`write_atomic`], but readable by the current user only (mode 0600 on Unix).
+/// Used for app-internal files such as the autosaved session.
+pub fn write_private(path: &Path, contents: &str) -> Result<()> {
+    write_impl(path, contents, true)
+}
+
+fn write_impl(path: &Path, contents: &str, private: bool) -> Result<()> {
+    use std::io::Write;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
     let tmp = path.with_extension("tmp-save");
-    std::fs::write(&tmp, contents)?;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    if private {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    #[cfg(not(unix))]
+    let _ = private;
+    let mut f = opts.open(&tmp)?;
+    f.write_all(contents.as_bytes())?;
+    f.sync_all()?;
+    drop(f);
     std::fs::rename(&tmp, path)?;
     Ok(())
 }

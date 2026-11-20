@@ -5,7 +5,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::project::{Project, for_disk, hydrate, write_atomic};
+use crate::project::{Project, for_disk, hydrate, write_private};
 use crate::{Error, Result};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ pub fn save(session: &Session, path: &Path) -> Result<()> {
     let mut s = session.clone();
     s.project = for_disk(&session.project);
     let json = serde_json::to_string(&s).map_err(|e| Error::Project(e.to_string()))?;
-    write_atomic(path, &json)
+    write_private(path, &json)
 }
 
 /// Load the session if there is one. A session that can't be read is moved aside

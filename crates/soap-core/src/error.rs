@@ -12,7 +12,7 @@ pub enum Error {
     Io(String),
     #[error("Project file error: {0}")]
     Project(String),
-    #[error("Variables: {0}")]
+    #[error("{0}")]
     Vars(String),
 }
 

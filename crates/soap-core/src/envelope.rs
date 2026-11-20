@@ -44,7 +44,7 @@ pub fn apply_ws_security(envelope: &str, sec: &WsSecurity) -> Result<String> {
     let root = doc.root_element();
     let env_ns = root.tag_name().namespace().unwrap_or("");
     if root.tag_name().name() != "Envelope" || !(env_ns == NS_SOAP11_ENV || env_ns == NS_SOAP12_ENV) {
-        return Err(Error::Xml("request body is not a SOAP Envelope".into()));
+        return Err(Error::Xml("the request body is not a SOAP Envelope".into()));
     }
     let prefix = root.lookup_prefix(env_ns).unwrap_or("");
     let q = |local: &str| if prefix.is_empty() { local.to_string() } else { format!("{prefix}:{local}") };
@@ -70,13 +70,13 @@ pub fn apply_ws_security(envelope: &str, sec: &WsSecurity) -> Result<String> {
         if src.trim_end().ends_with("/>") {
             out.replace_range(r, &format!("<{h}>{security}</{h}>", h = q("Header")));
         } else {
-            let close = src.rfind("</").ok_or_else(|| Error::Xml("malformed Header".into()))?;
+            let close = src.rfind("</").ok_or_else(|| Error::Xml("the SOAP Header element is malformed".into()))?;
             out.insert_str(r.start + close, &security);
         }
     } else if let Some(body) = child("Body") {
         out.insert_str(body.range().start, &format!("<{h}>{security}</{h}>", h = q("Header")));
     } else {
-        return Err(Error::Xml("SOAP Envelope has no Body".into()));
+        return Err(Error::Xml("the SOAP Envelope has no Body".into()));
     }
     Ok(out)
 }

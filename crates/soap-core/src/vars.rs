@@ -103,7 +103,8 @@ pub fn resolve_spec(spec: &RequestSpec, vars: &Vars) -> Result<RequestSpec> {
         Ok(out)
     } else {
         let list: Vec<_> = missing.into_iter().map(|n| format!("{{{{{n}}}}}")).collect();
-        Err(Error::Vars(format!("undefined variable(s): {}", list.join(", "))))
+        let (what, it) = if list.len() == 1 { ("Undefined variable", "it") } else { ("Undefined variables", "them") };
+        Err(Error::Vars(format!("{what}: {}. Define {it} in Variables & Environments.", list.join(", "))))
     }
 }
 

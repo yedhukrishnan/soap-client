@@ -54,3 +54,32 @@ async fn missing_import_names_the_file() {
     let err = import_wsdl(&format!("{}/broken.wsdl", fixture_dir())).await.unwrap_err().to_string();
     assert!(err.contains("missing.xsd") && err.contains("broken.wsdl"), "{err}");
 }
+
+const WSDL_IMPORTING: &str = r#"<wsdl:definitions targetNamespace="urn:x" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:xsd="http://www.w3.org/2001/XMLSchema"><wsdl:types><xsd:schema><xsd:import namespace="urn:y" schemaLocation="LOCATION"/></xsd:schema></wsdl:types></wsdl:definitions>"#;
+
+#[tokio::test]
+async fn remote_wsdl_cannot_read_local_files() {
+    let server = MockServer::start().await;
+    let secret = std::env::temp_dir().join(format!("soap-local-{}.xsd", std::process::id()));
+    std::fs::write(&secret, r#"<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"/>"#).unwrap();
+    let body = WSDL_IMPORTING.replace("LOCATION", &format!("file://{}", secret.display()));
+    Mock::given(method("GET"))
+        .and(path("/evil.wsdl"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(body))
+        .mount(&server)
+        .await;
+    let err = import_wsdl(&format!("{}/evil.wsdl", server.uri())).await.unwrap_err().to_string();
+    std::fs::remove_file(&secret).unwrap();
+    assert!(err.contains("may only import other web documents"), "{err}");
+}
+
+#[tokio::test]
+async fn imports_must_be_schemas_or_wsdls() {
+    let dir = std::env::temp_dir().join(format!("soap-imports-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("settings.xml"), "<plist><key>token</key><string>abc</string></plist>").unwrap();
+    std::fs::write(dir.join("main.wsdl"), WSDL_IMPORTING.replace("LOCATION", "settings.xml")).unwrap();
+    let err = import_wsdl(dir.join("main.wsdl").to_str().unwrap()).await.unwrap_err().to_string();
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert!(err.contains("is not an XML Schema or WSDL") && !err.contains("abc"), "{err}");
+}
