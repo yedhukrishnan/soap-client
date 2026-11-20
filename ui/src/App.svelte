@@ -2,6 +2,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onMount } from "svelte";
   import DuplicateDialog from "./components/DuplicateDialog.svelte";
+  import EndpointVarDialog from "./components/EndpointVarDialog.svelte";
   import ImportWsdlDialog from "./components/ImportWsdlDialog.svelte";
   import KeychainNotice from "./components/KeychainNotice.svelte";
   import RequestPane from "./components/RequestPane.svelte";
@@ -134,6 +135,12 @@
 
 {#if app.secretPrompt}
   <SecretPromptDialog prompt={app.secretPrompt} />
+{/if}
+
+{#if app.endpointPrompt}
+  {#key app.endpointPrompt}
+    <EndpointVarDialog reqId={app.endpointPrompt} />
+  {/key}
 {/if}
 
 {#if app.keychainNotice}

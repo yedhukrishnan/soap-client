@@ -91,6 +91,8 @@ class AppState {
   /** keychain key -> has a stored value */
   secretStatus = $state<Record<string, boolean>>({});
   keychainNotice = $state<KeychainNotice | null>(null);
+  /** Request whose endpoint is being turned into a variable. */
+  endpointPrompt = $state<string | null>(null);
   private consentPending: Promise<boolean> | null = null;
   /** Bumped on every edit; drives autosave. */
   revision = $state(0);
@@ -145,6 +147,11 @@ class AppState {
     const existing = this.requestsFor(wsdl.id, iface.name, op.name);
     let n = existing.length + 1;
     while (existing.some((r) => r.name === `Request ${n}`)) n++;
+    // Reuse a templated endpoint ({{productDataUrl}}) from a sibling request, so new
+    // requests follow the active environment instead of the WSDL's address.
+    const templated = this.project.requests.find(
+      (r) => r.wsdlId === wsdl.id && r.interfaceName === iface.name && r.spec.endpoint.includes("{{"),
+    )?.spec.endpoint;
     const req: SavedRequest = {
       id: uid(),
       name: `Request ${n}`,
@@ -152,7 +159,7 @@ class AppState {
       interfaceName: iface.name,
       operationName: op.name,
       spec: {
-        endpoint: iface.endpoints[0] ?? "",
+        endpoint: templated ?? iface.endpoints[0] ?? "",
         soapVersion: iface.soapVersion,
         soapAction: op.soapAction,
         body: op.sampleRequest,
@@ -390,6 +397,46 @@ class AppState {
     } catch (e) {
       console.error(e);
     }
+  }
+
+  /** Resolve {{vars}} for display only (secrets masked); lists undefined names. */
+  preview(text: string): { text: string; missing: string[] } {
+    const missing: string[] = [];
+    const out = text.replace(/\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g, (whole, name: string) => {
+      const v = this.effectiveVars.get(name);
+      if (!v) {
+        if (!missing.includes(name)) missing.push(name);
+        return whole;
+      }
+      return v.secret ? "••••••" : v.value;
+    });
+    return { text: out, missing };
+  }
+
+  /** e.g. "ProductDataServiceBinding" -> "productDataUrl". */
+  suggestEndpointVarName(req: SavedRequest) {
+    const base = req.interfaceName.replace(/(Service)?(Binding|Soap12|Soap|Port|HttpGet|HttpPost)*$/i, "") || "service";
+    const name = `${base[0].toLowerCase()}${base.slice(1)}Url`.replace(/[^A-Za-z0-9_.-]/g, "");
+    return VAR_NAME.test(name) ? name : "serviceUrl";
+  }
+
+  /**
+   * Store a literal endpoint as a plain variable in `scope` and point requests at it.
+   * With `applyToAll`, every request using the same URL is updated. Returns how many changed.
+   */
+  endpointToVariable(reqId: string, name: string, scope: Scope, applyToAll: boolean): number {
+    const req = this.request(reqId);
+    if (!req) return 0;
+    const url = req.spec.endpoint.trim();
+    const list = this.varsOf(scope);
+    const existing = list.find((v) => v.name === name);
+    if (existing?.secret) throw new Error(`"${name}" is a secret variable in ${this.scopeName(scope)}; pick another name.`);
+    if (existing) existing.value = url;
+    else list.push({ name, value: url, secret: false });
+    const targets = applyToAll ? this.project.requests.filter((r) => r.spec.endpoint.trim() === url) : [req];
+    for (const t of targets) t.spec.endpoint = `{{${name}}}`;
+    this.markDirty();
+    return targets.length;
   }
 
   // ---- keychain consent ----

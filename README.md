@@ -15,7 +15,9 @@ A lightweight, SoapUI-style desktop SOAP client for macOS and Linux, built with 
   `⌘S` still writes the project to its own file for sharing.
 - **Variables & environments**: use `{{name}}` in the body, endpoint, SOAPAction, headers or auth fields.
   Project variables are defaults; environments (e.g. one per supplier or stage) override them and are
-  switched from the sidebar. Values are XML-escaped when inserted into the body; undefined variables
+  switched from the sidebar. Endpoints can be per environment too: the `{{ }}` button next to a URL moves it
+  into a variable (optionally for every request using that URL), the resolved URL is shown under the
+  endpoint, and new requests for the same binding reuse the templated endpoint. Values are XML-escaped when inserted into the body; undefined variables
   are highlighted in the editor and block sending.
 - **Secrets**: secret variables are stored in the OS credential store (macOS Keychain, Linux Secret
   Service) — never in the project file or the autosaved session — and are masked as `••••••` in the

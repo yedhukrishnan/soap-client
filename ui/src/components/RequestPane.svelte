@@ -17,6 +17,9 @@
   const endpoints = $derived(source?.iface.endpoints ?? []);
   const headerCount = $derived(req.spec.headers.filter((h) => h.enabled && h.name).length);
   const literalSecrets = $derived(findLiteralSecrets(req.spec.body));
+  const templated = $derived(req.spec.endpoint.includes("{{"));
+  const resolved = $derived(templated ? app.preview(req.spec.endpoint) : null);
+  const scopeLabel = $derived(app.activeEnvironment ? `environment "${app.activeEnvironment.name}"` : "the project (no environment active)");
 
   function moveToSecret() {
     const s = literalSecrets[0];
@@ -73,12 +76,31 @@
     <datalist id="endpoints-{req.id}">
       {#each endpoints as e (e)}<option value={e}></option>{/each}
     </datalist>
+    {#if !templated && req.spec.endpoint.trim()}
+      <button
+        class="tovar"
+        title="Use a variable for this URL, so each environment (supplier) can have its own"
+        onclick={() => (app.endpointPrompt = req.id)}>{"{{ }}"}</button
+      >
+    {/if}
     {#if run?.sending}
       <button class="send cancel" onclick={() => app.cancel(req.id)}>Cancel</button>
     {:else}
       <button class="send" onclick={() => app.send(req.id)} title="Send (⌘↵)">Send ▶</button>
     {/if}
   </div>
+
+  {#if resolved}
+    <div class="resolved" class:bad={resolved.missing.length > 0}>
+      {#if resolved.missing.length}
+        ⚠ {resolved.missing.map((m) => `{{${m}}}`).join(", ")} not defined in {scopeLabel}
+        <button class="link" onclick={() => (app.varsOpen = true)}>Define…</button>
+      {:else}
+        → <span class="url" title={resolved.text}>{resolved.text}</span>
+        {#if app.activeEnvironment}<span class="env">{app.activeEnvironment.name}</span>{/if}
+      {/if}
+    </div>
+  {/if}
 
   <div class="subtabs">
     <button class:on={tab === "body"} onclick={() => (tab = "body")}>Body</button>
@@ -146,6 +168,46 @@
     flex: 1;
     font-family: var(--mono);
     font-size: 12.5px;
+  }
+  .tovar {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    padding: 5px 8px;
+  }
+  .tovar:hover {
+    background: var(--hover);
+  }
+  .resolved {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: -4px 10px 6px 96px;
+    font-size: 12px;
+    color: var(--muted);
+    min-width: 0;
+  }
+  .resolved .url {
+    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .resolved .env {
+    font-size: 10px;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    padding: 0 5px;
+    white-space: nowrap;
+  }
+  .resolved.bad {
+    color: var(--warn);
+  }
+  .link {
+    color: var(--accent);
+    font-size: 12px;
   }
   .send {
     background: var(--accent);
