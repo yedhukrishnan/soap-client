@@ -151,8 +151,10 @@
           {:else}
             <div class="scope env" class:on={scope === env.id}>
               <button class="envbtn" onclick={() => selectScope(env.id)} ondblclick={() => (renamingEnv = env.id)} title="Double-click to rename">
-                {env.name}
-                {#if app.project.activeEnvironment === env.id}<span class="active">active</span>{/if}
+                <span class="envlabel">{env.name}</span>
+                {#if app.project.activeEnvironment === env.id}
+                  <span class="active" title="Active environment">●</span>
+                {/if}
               </button>
               <button
                 class="del"
@@ -172,6 +174,7 @@
       <section>
         <div class="tophead">
           <h4>{app.scopeName(scope)}</h4>
+          {#if scope !== "project" && app.project.activeEnvironment === scope}<span class="activetag">● Active</span>{/if}
           {#if scope !== "project"}
             {#if app.project.activeEnvironment === scope}
               <button class="link" onclick={() => app.setActiveEnvironment(null)}>Deactivate</button>
@@ -205,12 +208,10 @@
                     <input
                       type="password"
                       autocomplete="off"
-                      placeholder={!app.keychainAcknowledged()
-                        ? "Secret — type a value and press Enter"
-                        : app.secretStatus[key]
-                          ? "•••••• stored — type to replace"
-                          : "Not set — type a value and press Enter"}
-                      class:unset={app.keychainAcknowledged() && !app.secretStatus[key]}
+                      placeholder={app.secretStatus[key]
+                        ? "•••••• stored — type to replace"
+                        : "Not set — type a value and press Enter"}
+                      class:unset={!app.secretStatus[key]}
                       onchange={(e) => commitSecret(v, e.currentTarget)}
                       onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                     />
@@ -302,7 +303,7 @@
   .body {
     flex: 1;
     display: grid;
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 240px 1fr;
     min-height: 0;
   }
   nav {
@@ -352,19 +353,24 @@
   }
   .envbtn {
     flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
     text-align: left;
     padding: 6px 8px;
+  }
+  .envlabel {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* A dot never gets squeezed, unlike a text badge next to a long name. */
   .active {
-    font-size: 10px;
+    flex-shrink: 0;
     color: var(--ok);
-    border: 1px solid currentColor;
-    border-radius: 4px;
-    padding: 0 4px;
-    margin-left: 4px;
+    font-size: 9px;
   }
   .envname {
     width: 100%;
@@ -391,6 +397,10 @@
   }
   .link {
     color: var(--accent);
+    font-size: 12px;
+  }
+  .activetag {
+    color: var(--ok);
     font-size: 12px;
   }
   table {
