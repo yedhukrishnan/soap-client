@@ -31,10 +31,13 @@
 
     {#if mac}
       <h4>What you'll see next</h4>
-      <p>macOS may ask for permission, possibly with your Mac login password:</p>
+      <p>
+        All of a project's secrets are kept in a single Keychain entry, read at most once per app launch. macOS may
+        ask for permission, possibly with your Mac login password:
+      </p>
       <blockquote>“SOAP Client” wants to use your confidential information stored in “{SERVICE}” in your keychain.</blockquote>
       <ul>
-        <li><b>Always Allow</b>: recommended; you won't be asked again for that secret.</li>
+        <li><b>Always Allow</b>: recommended; you won't be asked again.</li>
         <li><b>Allow</b>: works this time; you'll be asked again next time.</li>
         <li><b>Deny</b>: the secret can't be used and the request won't be sent.</li>
       </ul>
@@ -61,7 +64,7 @@
       </li>
       {#if mac}
         <li class="muted">
-          This build isn't code-signed, so macOS may ask again after the app is updated or rebuilt.
+          Unsigned development builds may be asked again after every rebuild; signed builds keep your choice.
         </li>
       {/if}
     </ul>

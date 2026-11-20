@@ -445,7 +445,7 @@ class AppState {
     const keys: string[] = [];
     for (const scope of ["project", ...this.project.environments.map((e) => e.id)])
       for (const v of this.varsOf(scope)) if (v.secret) keys.push(this.secretKey(scope, v.name));
-    if (!keys.length || !this.keychainAcknowledged()) return;
+    if (!keys.length) return; // status never reads secret data, so it never prompts
     try {
       const status = await api.secretStatus(keys);
       keys.forEach((k, i) => (this.secretStatus[k] = status[i]));

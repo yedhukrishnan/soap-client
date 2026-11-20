@@ -132,21 +132,18 @@ pub async fn secret_set(secrets: State<'_, Secrets>, key: String, value: String)
 
 #[tauri::command]
 pub async fn secret_delete(secrets: State<'_, Secrets>, keys: Vec<String>) -> CmdResult<()> {
-    keys.iter().try_for_each(|k| secrets.delete(k))
+    secrets.delete(&keys)
 }
 
 /// Move a secret to a new key (variable renamed). No-op if the old key has no value.
 #[tauri::command]
 pub async fn secret_rename(secrets: State<'_, Secrets>, from: String, to: String) -> CmdResult<()> {
-    if let Some(v) = secrets.get(&from)? {
-        secrets.set(&to, &v)?;
-        secrets.delete(&from)?;
-    }
-    Ok(())
+    secrets.rename(&from, &to)
 }
 
-/// Which of these keys have a stored value. Values themselves are never returned.
+/// Which of these keys have a stored value. Never reads secret data, so it never
+/// triggers an OS permission prompt. Values themselves are never returned.
 #[tauri::command]
 pub async fn secret_status(secrets: State<'_, Secrets>, keys: Vec<String>) -> CmdResult<Vec<bool>> {
-    keys.iter().map(|k| secrets.get(k).map(|v| v.is_some())).collect()
+    Ok(secrets.status(&keys))
 }

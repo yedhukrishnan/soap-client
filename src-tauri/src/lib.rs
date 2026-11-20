@@ -6,6 +6,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .menu(|app| menu::build(app))
+        .setup(|app| {
+            use tauri::Manager;
+            if let Ok(dir) = app.path().app_data_dir() {
+                app.state::<secrets::Secrets>().init(dir);
+            }
+            Ok(())
+        })
         .manage(commands::InFlight::default())
         .manage(secrets::Secrets::default())
         .invoke_handler(tauri::generate_handler![

@@ -4117,6 +4117,7 @@ name = "soap-client"
 version = "0.1.0"
 dependencies = [
  "keyring",
+ "keyring-core",
  "serde",
  "serde_json",
  "soap-core",
