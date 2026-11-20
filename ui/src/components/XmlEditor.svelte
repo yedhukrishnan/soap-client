@@ -115,7 +115,12 @@
   });
 </script>
 
-<div class="editor" bind:this={el}></div>
+<!--
+  "monaco-component" makes Monaco's theme variables (--vscode-menu-background etc.) exist on this
+  container. Monaco renders the right-click menu in a shadow root attached here, outside
+  .monaco-editor, and it would otherwise inherit no colours (transparent menu).
+-->
+<div class="editor monaco-component" bind:this={el}></div>
 
 <style>
   .editor {
