@@ -157,6 +157,7 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    min-width: 0;
   }
   .urlbar {
     display: flex;
@@ -166,6 +167,7 @@
   }
   .endpoint {
     flex: 1;
+    min-width: 80px;
     font-family: var(--mono);
     font-size: 12.5px;
   }

@@ -92,7 +92,7 @@
 
 <svelte:window onkeydown={onKey} />
 
-<div class="layout" style="grid-template-columns: {sidebarWidth}px 4px 1fr">
+<div class="layout" style="grid-template-columns: {sidebarWidth}px 4px minmax(0, 1fr)">
   <Sidebar />
   <div class="vsplit" role="separator" aria-orientation="vertical" onpointerdown={dragSidebar}></div>
 
@@ -163,12 +163,17 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
     background: var(--bg);
   }
   .stack {
     flex: 1;
     display: grid;
+    /* minmax(0, …): Monaco sets an explicit pixel width on itself; a plain auto/1fr
+       track would never shrink below it, pushing the Send button off-screen. */
+    grid-template-columns: minmax(0, 1fr);
     min-height: 0;
+    min-width: 0;
   }
   .vsplit {
     cursor: col-resize;

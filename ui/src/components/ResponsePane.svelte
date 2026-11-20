@@ -90,6 +90,7 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    min-width: 0;
   }
   .status {
     display: flex;
