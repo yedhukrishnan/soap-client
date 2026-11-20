@@ -108,3 +108,32 @@ async fn wsdl_redirect_to_another_server_sends_no_referer() {
     let received = cdn.received_requests().await.unwrap();
     assert!(received.iter().all(|q| !q.headers.contains_key("referer")));
 }
+
+/// After a redirect, relative imports resolve against the URL the WSDL was served from,
+/// not the one that was asked for.
+#[tokio::test]
+async fn relative_imports_resolve_against_the_redirect_target() {
+    let dir = fixture_dir();
+    let cdn = MockServer::start().await;
+    for file in ["service.wsdl", "abstract.wsdl", "schemas/messages.xsd", "schemas/message-types.xsd", "schemas/common/common.xsd"] {
+        let body = std::fs::read_to_string(format!("{dir}/{file}")).unwrap();
+        Mock::given(method("GET"))
+            .and(path(format!("/ws/{file}")))
+            .respond_with(ResponseTemplate::new(200).set_body_string(body))
+            .expect(1)
+            .mount(&cdn)
+            .await;
+    }
+    let origin = MockServer::start().await;
+    Mock::given(path("/service.wsdl"))
+        .respond_with(ResponseTemplate::new(302).insert_header("Location", format!("{}/ws/service.wsdl", cdn.uri())))
+        .expect(1)
+        .mount(&origin)
+        .await;
+
+    let entry = import_wsdl(&format!("{}/service.wsdl", origin.uri())).await.unwrap();
+    assert_eq!(entry.imports.len(), 4);
+    assert!(entry.imports.iter().all(|i| i.location.starts_with(&cdn.uri())), "{:?}", entry.imports.iter().map(|i| &i.location).collect::<Vec<_>>());
+    let s = &entry.document.unwrap().interfaces[0].operations[0].sample_request;
+    assert!(s.contains(EXPECTED), "{s}");
+}

@@ -263,8 +263,9 @@ fn document_redirects() -> reqwest::redirect::Policy {
     })
 }
 
-/// Download a document (e.g. a WSDL) over HTTP(S).
-pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Result<String> {
+/// Download a document (e.g. a WSDL) over HTTP(S). Returns its text and the URL it was
+/// finally served from, after redirects; relative references inside it resolve against that.
+pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Result<(String, reqwest::Url)> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .tls_danger_accept_invalid_certs(accept_invalid_certs)
@@ -277,8 +278,9 @@ pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Re
     if !status.is_success() {
         return Err(Error::Http(format!("GET {url} returned {status}")));
     }
+    let final_url = resp.url().clone();
     let bytes = read_limited(resp, limit).await?;
-    Ok(String::from_utf8_lossy(&bytes).into_owned())
+    Ok((String::from_utf8_lossy(&bytes).into_owned(), final_url))
 }
 
 #[cfg(test)]

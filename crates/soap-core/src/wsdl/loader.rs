@@ -86,9 +86,14 @@ impl Location {
         }
     }
 
-    async fn fetch(&self) -> Result<String> {
+    /// Read the document. Also returns where it actually came from: after a redirect,
+    /// relative references inside it must resolve against the final URL.
+    async fn fetch(&self) -> Result<(String, Location)> {
         match self {
-            Location::Url(u) => crate::http::fetch_text(u.as_str(), false, MAX_DOCUMENT_BYTES).await,
+            Location::Url(u) => {
+                let (text, final_url) = crate::http::fetch_text(u.as_str(), false, MAX_DOCUMENT_BYTES).await?;
+                Ok((text, Location::Url(final_url)))
+            }
             Location::File(p) => {
                 let size = std::fs::metadata(p)
                     .map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display())))?
@@ -96,7 +101,8 @@ impl Location {
                 if size > MAX_DOCUMENT_BYTES {
                     return Err(Error::Io(format!("{} is larger than {} MB", p.display(), MAX_DOCUMENT_BYTES >> 20)));
                 }
-                std::fs::read_to_string(p).map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display())))
+                let text = std::fs::read_to_string(p).map_err(|e| Error::Io(format!("cannot read {}: {e}", p.display())))?;
+                Ok((text, self.clone()))
             }
         }
     }
@@ -106,7 +112,7 @@ impl Location {
 /// Returns the main WSDL text and the imported documents (in discovery order).
 pub async fn load_with_imports(source: &str) -> Result<(String, Vec<ImportedDoc>)> {
     let root = Location::parse(source)?;
-    let main = root.fetch().await?;
+    let (main, root) = root.fetch().await?;
 
     let mut seen: HashSet<Location> = HashSet::from([root.clone()]);
     let mut queue: Vec<(Location, String)> = Vec::new();
@@ -121,9 +127,10 @@ pub async fn load_with_imports(source: &str) -> Result<(String, Vec<ImportedDoc>
         if imports.len() >= MAX_DOCUMENTS {
             return Err(Error::Wsdl(format!("more than {MAX_DOCUMENTS} imported documents")));
         }
-        let text = loc.fetch().await.map_err(|e| {
+        let (text, loc) = loc.fetch().await.map_err(|e| {
             Error::Wsdl(format!("cannot load imported document {loc} (referenced from {referrer}): {e}"))
         })?;
+        seen.insert(loc.clone());
         ensure_schema_or_wsdl(&text, &loc)?;
         for r in references(&text, &loc)? {
             if seen.insert(r.clone()) {
