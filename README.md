@@ -81,6 +81,17 @@ List available identities with `security find-identity -v -p codesigning`. An *A
 certificate works, as does a self-signed code-signing certificate created in Keychain Access.
 Unsigned builds may ask for Keychain access again after every rebuild.
 
+### Releasing (macOS)
+
+`npm run release:mac` builds a universal (Apple Silicon + Intel) app signed with a *Developer ID
+Application* certificate, notarizes and staples both the app and the disk image, verifies them with
+Gatekeeper, and writes `release/<version>/` with the `.dmg` and `SHA256SUMS.txt`.
+
+It needs an App Store Connect API key (role *Developer*) stored outside the repo:
+`~/.appstoreconnect/AuthKey_<KEYID>.p8` and its Issuer ID in `~/.appstoreconnect/issuer-id`
+(or `APPLE_API_KEY_PATH`, `APPLE_API_KEY`, `APPLE_API_ISSUER` in the environment), plus
+`rustup target add x86_64-apple-darwin`.
+
 ## Privacy and security
 
 - **Your passwords stay in your Keychain.** Secret values are stored only in the macOS Keychain or

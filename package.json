@@ -15,7 +15,8 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
-    "build:mac": "tauri build --config src-tauri/tauri.signing.json"
+    "build:mac": "tauri build --config src-tauri/tauri.signing.json",
+    "release:mac": "bash scripts/release-mac.sh"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

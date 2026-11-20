@@ -6,3 +6,4 @@ src-tauri/gen/
 .DS_Store
 CLAUDE.md
 src-tauri/tauri.signing.json
+release/
