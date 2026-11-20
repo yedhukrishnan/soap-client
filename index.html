@@ -3,222 +3,164 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SOAP Client — a lightweight SoapUI-style client for macOS and Linux</title>
-<meta name="description" content="A fast, lightweight desktop client for SOAP web services. Import a WSDL, get sample requests, send, assert. Secrets stay in your Keychain. Built with Rust, Tauri and Svelte.">
-<link rel="icon" href="favicon.png">
+<title>SOAP Client: Small. Secure. Just SOAP.</title>
+<meta name="description" content="Small. Secure. Just SOAP. A clutter-free desktop client for SOAP web services, free for macOS and Linux.">
+<link rel="icon" href="assets/favicon.png">
 <meta property="og:title" content="SOAP Client">
-<meta property="og:description" content="A lightweight SoapUI-style desktop client for SOAP web services, for macOS and Linux.">
+<meta property="og:description" content="Small. Secure. Just SOAP. A clutter-free desktop client for SOAP web services.">
+<meta property="og:image" content="https://yedhu.me/soap-client/assets/screenshots/request-response.jpg">
+<meta name="twitter:card" content="summary_large_image">
 <style>
   :root {
-    --bg:#ffffff; --bg2:#f6f7f9; --fg:#1f2328; --muted:#6b7280; --border:#e3e5e8;
-    --accent:#2563eb; --accent-fg:#fff; --code:#1e1e1e; --codefg:#e5e7eb;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#1e1e1e; --bg2:#252526; --fg:#e5e7eb; --muted:#9ca3af; --border:#353538; --accent:#3b82f6; --code:#151516; }
+    --bg: #0d0f12; --panel: #15181d; --fg: #e6e8eb; --muted: #8b929c; --line: #232830;
+    --green: #4ade80; --blue: #60a5fa;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
   }
   * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body { margin:0; background:var(--bg); color:var(--fg); line-height:1.6;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  a { color:var(--accent); }
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-  nav { display:flex; align-items:center; justify-content:space-between; padding:18px 0; }
-  nav .brand { display:flex; align-items:center; gap:10px; font-weight:650; color:var(--fg); text-decoration:none; }
-  nav .brand img { width:30px; height:30px; }
-  nav .links { display:flex; gap:22px; font-size:.95rem; }
-  nav .links a { color:var(--muted); text-decoration:none; }
-  nav .links a:hover { color:var(--fg); }
-  .hero { text-align:center; padding: 56px 0 40px; }
-  .hero img.logo { width:112px; height:112px; }
-  h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height:1.1; margin:18px 0 14px; letter-spacing:-.02em; }
-  .hero p.lead { font-size:1.2rem; color:var(--muted); max-width:640px; margin:0 auto 28px; }
-  .btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
-  .btn { display:inline-block; padding:12px 22px; border-radius:9px; font-weight:600; text-decoration:none;
-    border:1px solid var(--border); color:var(--fg); background:var(--bg2); }
-  .btn.primary { background:var(--accent); color:var(--accent-fg); border-color:var(--accent); }
-  .btn:hover { filter:brightness(1.08); }
-  .sub { color:var(--muted); font-size:.88rem; margin-top:14px; }
-  .shot { margin: 44px auto 0; max-width: 900px; border:1px solid var(--border); border-radius:12px; overflow:hidden;
-    background:var(--code); box-shadow: 0 20px 50px rgba(0,0,0,.18); text-align:left; }
-  .shot .bar { display:flex; gap:7px; padding:11px 14px; background:#2b2b2d; }
-  .shot .bar i { width:11px; height:11px; border-radius:50%; background:#4a4a4f; display:block; }
-  .shot .body { display:grid; grid-template-columns: 200px 1fr; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.8rem; color:var(--codefg); }
-  .shot .side { background:#252526; padding:14px; border-right:1px solid #353538; line-height:1.9; }
-  .shot .side b { color:#9ca3af; font-weight:500; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; display:block; margin-top:6px; }
-  .shot .side .sel { background:#2563eb33; color:#fff; border-radius:4px; padding:0 6px; }
-  .shot .main { padding:14px 18px; }
-  .shot pre { margin:0 0 14px; white-space:pre-wrap; }
-  .t { color:#7dd3fc; } .a { color:#fbbf24; } .v { color:#86efac; } .m { color:#9ca3af; }
-  .ok { color:#22c55e; } .badge { display:inline-block; border:1px solid #353538; border-radius:5px; padding:1px 8px; margin-right:6px; }
-  section { padding: 64px 0; }
-  section.alt { background:var(--bg2); border-block:1px solid var(--border); }
-  h2 { font-size:clamp(1.5rem,3.4vw,2.1rem); letter-spacing:-.01em; margin:0 0 8px; text-align:center; }
-  .intro { text-align:center; color:var(--muted); max-width:620px; margin:0 auto 38px; }
-  .grid { display:grid; gap:18px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
-  .card { background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:22px; }
-  section.alt .card { background:var(--bg); }
-  .card h3 { margin:0 0 6px; font-size:1.05rem; }
-  .card p { margin:0; color:var(--muted); font-size:.94rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.88em; background:var(--bg2); padding:1px 6px; border-radius:5px; border:1px solid var(--border); }
-  .steps { counter-reset:s; display:grid; gap:16px; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); padding:0; list-style:none; margin:0; }
-  .steps li { counter-increment:s; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:22px; }
-  .steps li::before { content:counter(s); display:inline-grid; place-items:center; width:28px; height:28px; border-radius:50%;
-    background:var(--accent); color:#fff; font-weight:700; font-size:.9rem; margin-bottom:10px; }
-  .steps strong { display:block; }
-  .steps span { color:var(--muted); font-size:.94rem; }
-  .two { display:grid; gap:28px; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); }
-  pre.cmd { background:var(--code); color:var(--codefg); padding:14px 16px; border-radius:9px; overflow:auto; font-size:.85rem; margin:10px 0 0; }
-  table { border-collapse:collapse; margin:0 auto; font-size:.95rem; }
-  td, th { padding:8px 20px; border-bottom:1px solid var(--border); text-align:left; }
-  th { color:var(--muted); font-weight:500; }
-  ul.tight { padding-left:20px; color:var(--muted); }
-  footer { padding:36px 0 50px; text-align:center; color:var(--muted); font-size:.9rem; border-top:1px solid var(--border); }
-  @media (max-width:640px) { .shot .body { grid-template-columns:1fr; } .shot .side { display:none; } nav .links a:not(.keep) { display:none; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; height: 64px; font-family: var(--mono); font-size: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; }
+  .brand img { width: 24px; height: 24px; }
+  nav a.gh { color: var(--muted); text-decoration: none; }
+  nav a.gh:hover { color: var(--fg); }
+
+  header { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding: 80px 0 64px; }
+  .tag { font-family: var(--mono); font-size: 13px; color: var(--green); margin: 0 0 18px; }
+  h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -0.03em; margin: 0 0 18px; }
+  h1 span { color: var(--muted); }
+  .lead { color: var(--muted); font-size: 19px; margin: 0 0 30px; max-width: 30em; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border-radius: 8px; font-weight: 600;
+         font-size: 15px; text-decoration: none; border: 1px solid var(--line); }
+  .btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .btn.primary:hover { background: #fff; }
+  .btn:not(.primary):hover { border-color: var(--muted); }
+  .note { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-top: 18px; }
+
+  /* A real request/response pair from the demo project. */
+  .code { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font: 13.5px/1.7 var(--mono); }
+  .code .bar { display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12.5px; }
+  .code .ok { color: var(--green); }
+  .code pre { margin: 0; padding: 16px; overflow-x: auto; color: var(--muted); }
+  .code .t { color: var(--blue); } .code .v { color: var(--fg); font-weight: 600; }
+  .code hr { border: 0; border-top: 1px dashed var(--line); margin: 0; }
+
+  .shot img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--line); }
+
+  .points { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line);
+            border-radius: 12px; overflow: hidden; margin: 72px 0 96px; }
+  .points div { background: var(--bg); padding: 28px; }
+  .points code { font: 13px var(--mono); color: var(--green); }
+  .points h3 { margin: 10px 0 6px; font-size: 18px; letter-spacing: -0.01em; }
+  .points p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+  .gallery { margin: 0 0 96px; }
+  .gallery h2 { font: 13px var(--mono); color: var(--green); font-weight: 400; margin: 0 0 18px; }
+  .gallery .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .gallery figure { margin: 0; }
+  .gallery a { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+  .gallery a:hover { border-color: var(--muted); }
+  .gallery img { width: 100%; height: auto; display: block; }
+  .gallery figcaption { margin-top: 10px; font-size: 15px; color: var(--muted); }
+  .gallery figcaption b { color: var(--fg); font-weight: 600; }
+
+  footer { border-top: 1px solid var(--line); padding: 26px 0 40px; font: 13px var(--mono); color: var(--muted); }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--muted); text-decoration: none; margin-left: 22px; }
+  footer a:hover { color: var(--fg); }
+
+  @media (max-width: 860px) {
+    header { grid-template-columns: 1fr; gap: 36px; padding: 40px 0; }
+    .points { grid-template-columns: 1fr; }
+    .gallery .grid { grid-template-columns: 1fr; gap: 28px; }
+    footer a { margin: 0 18px 0 0; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="brand" href="#"><img src="icon.svg" alt=""> SOAP Client</a>
-    <div class="links">
-      <a href="#features">Features</a>
-      <a href="#install">Install</a>
-      <a href="#privacy">Privacy</a>
-      <a class="keep" href="https://github.com/yedhukrishnan/soap-client">GitHub</a>
-    </div>
-  </nav>
+  <div class="wrap">
+    <nav aria-label="Main">
+      <a class="brand" href="./"><img src="assets/icon.svg" alt=""> soap-client</a>
+      <a class="gh" href="https://github.com/yedhukrishnan/soap-client">github →</a>
+    </nav>
 
-  <header class="hero">
-    <img class="logo" src="icon.svg" alt="SOAP Client icon">
-    <h1>SOAP, without the weight.</h1>
-    <p class="lead">A fast, lightweight SoapUI-style desktop client for testing SOAP web services.
-      Import a WSDL, get ready-made requests, send, and assert. Native on macOS and Linux.</p>
-    <div class="btns">
-      <a class="btn primary" href="https://github.com/yedhukrishnan/soap-client/releases/latest">Download for macOS</a>
-      <a class="btn" href="https://github.com/yedhukrishnan/soap-client">View on GitHub</a>
-    </div>
-    <p class="sub">Free and open source (MIT) · macOS 11+ (Apple Silicon &amp; Intel) · Signed and notarized · Linux: build from source</p>
-
-    <div class="shot" aria-hidden="true">
-      <div class="bar"><i></i><i></i><i></i></div>
-      <div class="body">
-        <div class="side">
-          <b>Environment</b>
-          Supplier A
-          <b>Calculator</b>
-          &nbsp;&nbsp;Add<br>
-          <span class="sel">&nbsp;Subtract</span><br>
-          &nbsp;&nbsp;Multiply
+    <header>
+      <div>
+        <p class="tag">// free · open source · macOS &amp; Linux</p>
+        <h1>Small.<br>Secure.<br><span>Just SOAP.</span></h1>
+        <p class="lead">A clutter-free desktop client for the SOAP services you still have to work with.</p>
+        <div class="cta">
+          <a class="btn primary" href="https://github.com/yedhukrishnan/soap-client/releases/latest">Download for Mac</a>
+          <a class="btn" href="https://github.com/yedhukrishnan/soap-client">Source code</a>
         </div>
-        <div class="main">
-          <pre><span class="m">POST</span> {{baseUrl}}/calculator.asmx   <span class="m">SOAP 1.2</span>
-
-<span class="t">&lt;soap:Envelope</span> <span class="a">xmlns:soap</span>=<span class="v">"…"</span><span class="t">&gt;</span>
-  <span class="t">&lt;soap:Body&gt;&lt;Subtract</span> <span class="a">xmlns</span>=<span class="v">"http://tempuri.org/"</span><span class="t">&gt;</span>
-    <span class="t">&lt;intA&gt;</span>10<span class="t">&lt;/intA&gt;&lt;intB&gt;</span>4<span class="t">&lt;/intB&gt;</span>
-  <span class="t">&lt;/Subtract&gt;&lt;/soap:Body&gt;</span>
-<span class="t">&lt;/soap:Envelope&gt;</span></pre>
-          <span class="badge ok">✓ Status 200</span><span class="badge ok">✓ XPath matches</span><span class="badge ok">✓ No SOAP Fault</span><span class="badge ok">✓ 84 ms</span>
-        </div>
+        <p class="note">macOS 11+ · Apple Silicon &amp; Intel</p>
       </div>
-    </div>
-  </header>
-</div>
 
-<section class="alt" id="how">
-  <div class="wrap">
-    <h2>From WSDL to response in a minute</h2>
-    <p class="intro">No project wizards, no heavyweight IDE.</p>
-    <ol class="steps">
-      <li><strong>Import a WSDL</strong><span>From a URL or a file. Linked schemas are fetched and stored, so it works offline afterwards.</span></li>
-      <li><strong>Pick an operation</strong><span>A sample request is generated from the schema, with optional elements, choices and enums handled.</span></li>
-      <li><strong>Send and assert</strong><span>Press <code>⌘↵</code>, inspect the response, and add checks that run on every send.</span></li>
-    </ol>
-  </div>
-</section>
+      <div class="code" aria-label="Example request and response">
+        <div class="bar"><span>CapitalCity · India</span><span class="ok">200 OK · 408 ms</span></div>
+<pre><span class="t">&lt;tns:CapitalCity&gt;</span>
+  <span class="t">&lt;tns:sCountryISOCode&gt;</span>
+    <span class="v">{{countryCode}}</span>
+  <span class="t">&lt;/tns:sCountryISOCode&gt;</span>
+<span class="t">&lt;/tns:CapitalCity&gt;</span></pre>
+        <hr>
+<pre><span class="t">&lt;m:CapitalCityResult&gt;</span>
+  <span class="v">New Delhi</span>
+<span class="t">&lt;/m:CapitalCityResult&gt;</span>
 
-<section id="features">
-  <div class="wrap">
-    <h2>Everything you need, nothing you don't</h2>
-    <p class="intro">The core of SoapUI's workflow in a small, quick native app.</p>
-    <div class="grid">
-      <div class="card"><h3>WSDL &amp; XSD import</h3><p>Follows <code>wsdl:import</code>, <code>xsd:import</code>, <code>xsd:include</code> and <code>xsd:redefine</code>. Everything is stored in the project.</p></div>
-      <div class="card"><h3>Smart sample requests</h3><p>Generated SoapUI-style: optional and repeated elements, choices, enumerations, attributes and type extensions.</p></div>
-      <div class="card"><h3>SOAP 1.1 &amp; 1.2</h3><p>Document/literal and rpc/literal, including <code>soap:header</code> parts.</p></div>
-      <div class="card"><h3>Request editor</h3><p>Tabs and an XML editor, with pretty, raw, header and sent-request views of the response.</p></div>
-      <div class="card"><h3>Authentication</h3><p>HTTP Basic, WS-Security UsernameToken (text or digest, optional timestamp) and custom HTTP headers.</p></div>
-      <div class="card"><h3>Assertions</h3><p>HTTP status, body contains / does not contain, XPath 1.0, no SOAP Fault, and maximum response time.</p></div>
-      <div class="card"><h3>Variables &amp; environments</h3><p>Use <code>{{name}}</code> in the body, endpoint, SOAPAction, headers and auth. Switch environments per supplier from the sidebar.</p></div>
-      <div class="card"><h3>Secrets done right</h3><p>Stored in the macOS Keychain or Linux keyring. Typed a password into a request? One click moves it to a secret variable.</p></div>
-      <div class="card"><h3>Autosave</h3><p>Your work is saved continuously and restored on launch. Export projects as <code>.json</code> to share.</p></div>
-    </div>
-  </div>
-</section>
-
-<section class="alt" id="privacy">
-  <div class="wrap">
-    <h2>Private by design</h2>
-    <p class="intro">Built for people who test against real systems with real credentials.</p>
-    <div class="grid">
-      <div class="card"><h3>Passwords stay in your Keychain</h3><p>Secret values never touch project files, the session file or logs, and are masked in the sent-request view.</p></div>
-      <div class="card"><h3>Shared projects are safe to open</h3><p>If a project file would use secrets saved on your computer, the app asks first.</p></div>
-      <div class="card"><h3>Careful imports</h3><p>A WSDL from the web only loads other web documents, and only schemas and WSDLs are imported.</p></div>
-      <div class="card"><h3>Locked-down UI</h3><p>The interface runs under a strict Content Security Policy, and the session is readable only by your user.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="install">
-  <div class="wrap">
-    <h2>Install</h2>
-    <p class="intro">Version 0.2.0 · open source under the MIT license.</p>
-    <div class="two">
-      <div class="card">
-        <h3>macOS</h3>
-        <p>Requires macOS 11 or later, Apple Silicon or Intel. Signed and notarized by Apple.</p>
-        <ul class="tight">
-          <li>Download the <code>.dmg</code> from the <a href="https://github.com/yedhukrishnan/soap-client/releases/latest">latest release</a>.</li>
-          <li>Drag <strong>SOAP Client</strong> into Applications.</li>
-          <li>When asked, choose <strong>Always Allow</strong> for Keychain access.</li>
-        </ul>
-        <pre class="cmd">shasum -a 256 ~/Downloads/SOAP-Client-*-macOS-universal.dmg</pre>
+<span class="ok">✓ 4/4 assertions passed</span></pre>
       </div>
-      <div class="card">
-        <h3>Linux</h3>
-        <p>No prebuilt packages yet. Build from source to get <code>.deb</code>, <code>.rpm</code> and AppImage.</p>
-        <pre class="cmd">git clone https://github.com/yedhukrishnan/soap-client
-cd soap-client
-npm install
-npm run tauri build</pre>
-        <p style="margin-top:10px">Needs Rust (stable), Node.js 20.19+ or 22.12+ and the WebKitGTK toolchain. See the <a href="https://github.com/yedhukrishnan/soap-client#development">README</a>.</p>
+    </header>
+
+    <figure class="shot" style="margin:0">
+      <img src="assets/screenshots/request-response.jpg" width="1800" height="1089"
+           alt="SOAP Client showing a request and its response, with all assertions passing">
+    </figure>
+
+    <section class="points" aria-label="Highlights">
+      <div><code>01</code><h3>Secure by default</h3><p>Passwords live in your Keychain, unlocked with Touch ID. Never in project files.</p></div>
+      <div><code>02</code><h3>Lightweight</h3><p>An 18 MB download with a native Rust core. No Java, no plugins.</p></div>
+      <div><code>03</code><h3>No clutter</h3><p>One window: pick an operation, edit, send. Everything autosaves.</p></div>
+      <div><code>04</code><h3>Ready-made requests</h3><p>Every operation comes with a sample request, built from the WSDL.</p></div>
+      <div><code>05</code><h3>Switch environments</h3><p>Same requests, different servers and credentials. One click.</p></div>
+      <div><code>06</code><h3>Checks on every send</h3><p>Status, XPath and fault checks run automatically on each response.</p></div>
+    </section>
+
+    <section class="gallery" aria-label="Screenshots">
+      <h2>// screenshots</h2>
+      <div class="grid">
+        <figure>
+          <a href="assets/screenshots/environments.jpg"><img src="assets/screenshots/environments-window.jpg" width="1590" height="880" loading="lazy"
+             alt="The Variables &amp; Environments dialog with India, Japan, Netherlands and Brazil environments"></a>
+          <figcaption><b>Environments.</b> One click to switch servers and credentials.</figcaption>
+        </figure>
+        <figure>
+          <a href="assets/screenshots/response-view.jpg"><img src="assets/screenshots/response-view-window.jpg" width="1590" height="880" loading="lazy"
+             alt="A pretty-printed SOAP response with status 200 OK, response time and size"></a>
+          <figcaption><b>Responses.</b> Pretty-printed, with status, time and size.</figcaption>
+        </figure>
+        <figure>
+          <a href="assets/screenshots/welcome.jpg"><img src="assets/screenshots/welcome-window.jpg" width="1590" height="880" loading="lazy"
+             alt="The welcome screen with Import WSDL and Open Project buttons"></a>
+          <figcaption><b>Getting started.</b> Import a WSDL from a link or a file.</figcaption>
+        </figure>
       </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Yedhu Krishnan · MIT</span>
+      <span>
+        <a href="https://github.com/yedhukrishnan/soap-client">github</a>
+        <a href="https://github.com/yedhukrishnan/soap-client/issues">issues</a>
+        <a href="https://yedhu.me">yedhu.me</a>
+      </span>
     </div>
-  </div>
-</section>
-
-<section class="alt">
-  <div class="wrap">
-    <h2>Keyboard shortcuts</h2>
-    <p class="intro">&nbsp;</p>
-    <table>
-      <tr><th>Action</th><th>macOS</th><th>Linux</th></tr>
-      <tr><td>Send request</td><td><code>⌘↵</code></td><td><code>Ctrl+Enter</code></td></tr>
-      <tr><td>Duplicate request</td><td><code>⌘D</code></td><td><code>Ctrl+D</code></td></tr>
-      <tr><td>Save / Save as</td><td><code>⌘S</code> / <code>⇧⌘S</code></td><td><code>Ctrl+S</code> / <code>Ctrl+Shift+S</code></td></tr>
-      <tr><td>Open project</td><td><code>⌘O</code></td><td><code>Ctrl+O</code></td></tr>
-    </table>
-    <p class="intro" style="margin-top:30px">Not supported: WSDL 2.0, MTOM/attachments and WS-Addressing.</p>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap">
-    Built with Rust, Tauri 2 and Svelte 5 ·
-    <a href="https://github.com/yedhukrishnan/soap-client">Source</a> ·
-    <a href="https://github.com/yedhukrishnan/soap-client/issues">Issues</a> ·
-    <a href="https://github.com/yedhukrishnan/soap-client/blob/main/SECURITY.md">Security</a><br>
-    MIT © 2026 <a href="https://yedhu.me">Yedhu Krishnan</a>
-  </div>
-</footer>
+  </footer>
 </body>
 </html>
