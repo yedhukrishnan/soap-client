@@ -1,7 +1,7 @@
 {
   "name": "soap-client",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A lightweight SOAP client for macOS and Linux",
   "author": "Yedhu Krishnan <dev@yedhu.me> (https://yedhu.me)",
   "license": "MIT",
