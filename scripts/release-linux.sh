@@ -68,7 +68,7 @@ for distro in debian:12 ubuntu:22.04; do
     apt-get update -qq && apt-get install -y -qq /out/$(basename "$DEB") >/dev/null
     missing=\$(ldd /usr/bin/soap-client | grep 'not found' || true)
     [ -z \"\$missing\" ] || { echo \"\$missing\"; exit 1; }
-    test -f /usr/share/applications/*.desktop
+    test -f '/usr/share/applications/SOAP Client.desktop'
     echo '  $distro: OK'"
 done
 
