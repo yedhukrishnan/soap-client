@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "A lightweight SOAP client"
 authors = ["Yedhu Krishnan <dev@yedhu.me>"]
 homepage = "https://yedhu.me"
+repository = "https://github.com/yedhukrishnan/soap-client"
+license = "MIT"
 edition = "2024"
+publish = false
 
 [lib]
 name = "soap_client_lib"
@@ -21,4 +24,5 @@ serde_json = "1.0.154"
 soap-core = { path = "../crates/soap-core" }
 tauri = { version = "2.12.7", features = [] }
 tauri-plugin-dialog = "2.8.4"
+tauri-plugin-opener = "2.7.3"
 tokio = { version = "1.54.1", features = ["sync", "macros"] }

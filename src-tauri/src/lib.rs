@@ -5,7 +5,9 @@ mod secrets;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .menu(|app| menu::build(app))
+        .plugin(tauri_plugin_opener::init())
+        .menu(menu::build)
+        .on_menu_event(menu::on_event)
         .setup(|app| {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_data_dir() {
@@ -30,6 +32,7 @@ pub fn run() {
             commands::secret_delete,
             commands::secret_rename,
             commands::secret_status,
+            commands::secret_project_has,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SOAP client");
