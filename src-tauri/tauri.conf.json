@@ -71,6 +71,9 @@
         ]
       }
     },
-    "license": "MIT"
+    "license": "MIT",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    }
   }
 }
