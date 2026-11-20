@@ -10,7 +10,13 @@ Small. Secure. Just SOAP. A clutter-free desktop client for testing SOAP web ser
 [Releases page](https://github.com/yedhukrishnan/soap-client/releases/latest), open it and drag
 **SOAP Client** into **Applications**.
 
-**Linux:** no packages yet; [build from source](#building-from-source).
+**Linux** (x86_64 and arm64): download from the same page.
+
+- **Debian 12+ / Ubuntu 22.04+:** `sudo apt install ./soap-client_<version>_<arch>.deb`
+- **Arch Linux:** `sudo pacman -U soap-client-bin-<version>-1-x86_64.pkg.tar.zst`
+
+Secrets are kept in your keyring through the Secret Service API, so a keyring such as GNOME Keyring,
+KWallet or KeePassXC must be running; without one they are kept only until the app quits.
 
 ## Features
 
@@ -31,7 +37,8 @@ Small. Secure. Just SOAP. A clutter-free desktop client for testing SOAP web ser
 ## Building from source
 
 You need Rust and Node.js 20.19+ (or 22.12+). On Linux, also install WebKitGTK
-(on Debian/Ubuntu: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev build-essential`).
+(on Debian/Ubuntu: `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libdbus-1-dev build-essential`;
+on Arch: `webkit2gtk-4.1 base-devel`).
 
 ```sh
 npm install
@@ -40,7 +47,7 @@ npm run tauri build   # build packages into target/release/bundle/
 cargo test            # run the tests
 ```
 
-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for signed, notarized macOS releases.
+Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for macOS and Linux releases.
 
 ## Privacy and security
 

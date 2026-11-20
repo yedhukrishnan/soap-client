@@ -153,8 +153,8 @@ say "Done: ${OUT}/${DMG_NAME}"
 cat "${OUT}/SHA256SUMS.txt"
 cat <<EOF
 
-To publish (after pushing main):
-  git tag v${VERSION} && git push origin v${VERSION}
-  gh release create v${VERSION} "${OUT}/${DMG_NAME}" "${OUT}/SHA256SUMS.txt" \\
-    --title "SOAP Client ${VERSION}" --notes-file <release-notes.md>
+To publish (see docs/RELEASING.md): push the tag v${VERSION} so GitHub builds the Linux
+packages into a draft release, then add this disk image and publish:
+  gh release upload v${VERSION} "${OUT}/${DMG_NAME}" "${OUT}/SHA256SUMS.txt"
+  gh release edit v${VERSION} --draft=false --notes-file <release-notes.md>
 EOF

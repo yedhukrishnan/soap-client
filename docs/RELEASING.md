@@ -1,10 +1,15 @@
-# Releasing (macOS)
+# Releasing
+
+A release has macOS and Linux packages. Linux packages are built by GitHub Actions when a
+version tag is pushed; the macOS build is signed and notarized locally.
+
+## macOS
 
 `npm run release:mac` builds a universal app (Apple Silicon and Intel), signs it with a
 *Developer ID Application* certificate, notarizes and staples both the app and the disk image,
 checks them with Gatekeeper, and writes the `.dmg` and `SHA256SUMS.txt` to `release/<version>/`.
 
-## One-time setup
+### One-time setup
 
 Nothing below goes into the repository.
 
@@ -20,20 +25,41 @@ Nothing below goes into the repository.
   Alternatively set `APPLE_API_KEY_PATH`, `APPLE_API_KEY` and `APPLE_API_ISSUER`.
 - **Intel target:** `rustup target add x86_64-apple-darwin`.
 
+## Linux
+
+`.github/workflows/release-linux.yml` runs on every pushed `v*` tag. It builds the `.deb`
+(x86_64 and arm64) in an Ubuntu 22.04 container, so it runs on Ubuntu 22.04+ and Debian 12+;
+repackages the x86_64 `.deb` for Arch Linux (`soap-client-bin`, see `packaging/arch/PKGBUILD`);
+installs each package on a clean system to check its libraries resolve; and attaches the
+packages and `SHA256SUMS-linux.txt` to the tag's release, creating it as a draft if needed.
+No secrets are needed. Run it by hand from the Actions tab to get the packages as artifacts
+without releasing.
+
+To build locally for this machine's architecture, run `npm run release:linux`. It needs Docker
+(your user in the `docker` group, or `DOCKER="sudo docker"`), and builds the Arch package too when
+run on Arch Linux (this is the only way to get an aarch64 Arch package). Output goes to `release/<version>/`.
+
 ## Publishing a release
 
 1. Set the same version in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`, and commit.
-2. Run `npm run release:mac`.
-3. Tag and publish:
+2. Tag and push; the Linux packages build on GitHub and land in a draft release:
 
    ```sh
    git push origin main
    git tag v<version> && git push origin v<version>
-   gh release create v<version> release/<version>/*.dmg release/<version>/SHA256SUMS.txt \
-     --title "SOAP Client <version>" --notes-file <release-notes.md>
+   ```
+3. Run `npm run release:mac` and add the disk image to the draft:
+
+   ```sh
+   gh release upload v<version> release/<version>/*.dmg release/<version>/SHA256SUMS.txt
+   ```
+4. Once the Linux workflow has finished, publish:
+
+   ```sh
+   gh release edit v<version> --draft=false --notes-file <release-notes.md>
    ```
 
-## Other builds
+## Other macOS builds
 
 - `npm run tauri build`: unsigned build. Secrets use the login keychain, and macOS may ask for
   Keychain access again after every rebuild.

@@ -1,0 +1,126 @@
+# Linux release packages: .deb (x86_64, arm64) and Arch Linux (x86_64).
+#
+# On a pushed version tag (v1.2.3) the packages are attached to that tag's GitHub release,
+# which is created as a draft if it doesn't exist yet. Run it by hand (Actions tab ->
+# "Linux release" -> Run workflow) to build the packages as downloadable artifacts only.
+name: Linux release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deb:
+    name: .deb (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: amd64 }
+          - { runner: ubuntu-24.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          [[ "v${version}" == "${GITHUB_REF_NAME}" ]] || { echo "::error::tag ${GITHUB_REF_NAME} != package.json v${version}"; exit 1; }
+          for f in src-tauri/tauri.conf.json src-tauri/Cargo.toml; do
+            grep -Eq "\"?version\"? *[:=] *\"${version}\"" "$f" || { echo "::error::version in $f doesn't match"; exit 1; }
+          done
+
+      - name: Build the image (Ubuntu 22.04)
+        run: docker build -t soap-client-linux-build packaging/linux
+
+      - name: Build the .deb
+        run: |
+          mkdir out
+          git archive --format=tar HEAD | docker run --rm -i \
+            -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -v "$PWD/out:/out" \
+            soap-client-linux-build \
+            bash -c 'mkdir /build && tar -x -C /build && /build/packaging/linux/build-deb.sh /out'
+
+      - name: Install and check on Debian 12 and Ubuntu 22.04
+        run: |
+          for distro in debian:12 ubuntu:22.04; do
+            docker run --rm -v "$PWD/out:/out:ro" "$distro" bash -c '
+              set -e; export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq && apt-get install -y -qq /out/*.deb >/dev/null
+              missing=$(ldd /usr/bin/soap-client | grep "not found" || true)
+              [ -z "$missing" ] || { echo "$missing"; exit 1; }
+              test -f /usr/share/applications/*.desktop'
+            echo "$distro: OK"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: deb-${{ matrix.arch }}
+          path: out/*.deb
+          if-no-files-found: error
+
+  arch:
+    name: Arch Linux (x86_64)
+    needs: deb
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - name: Install build tools
+        run: pacman -Syu --noconfirm --needed base-devel git
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: deb-amd64
+          path: deb
+
+      - name: Build the package
+        run: |
+          useradd -m builder
+          chown -R builder: .
+          su builder -c 'packaging/arch/build-pkg.sh deb/*.deb out'
+
+      - name: Install and check
+        run: |
+          pacman -U --noconfirm out/*.pkg.tar.zst
+          missing=$(ldd /usr/bin/soap-client | grep "not found" || true)
+          [ -z "$missing" ] || { echo "$missing"; exit 1; }
+          pacman -Qi soap-client-bin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: arch-x86_64
+          path: out/*.pkg.tar.zst
+          if-no-files-found: error
+
+  publish:
+    name: Attach to the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deb, arch]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload the packages
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS-linux.txt
+          cat SHA256SUMS-linux.txt
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --draft --verify-tag --title "SOAP Client ${TAG#v}" --notes ""
+          gh release upload "$TAG" * --clobber

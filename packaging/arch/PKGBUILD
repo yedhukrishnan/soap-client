@@ -1,0 +1,27 @@
+# Maintainer: Yedhu Krishnan <dev@yedhu.me>
+#
+# Repackages the release .deb (built on Ubuntu 22.04, see packaging/linux) for Arch Linux.
+# packaging/arch/build-pkg.sh fills in pkgver and the checksum and builds from a local .deb;
+# run as-is, makepkg downloads the .deb from the GitHub release.
+pkgname=soap-client-bin
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Small, secure, clutter-free desktop client for testing SOAP web services"
+arch=('x86_64' 'aarch64')
+url="https://github.com/yedhukrishnan/soap-client"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libsoup3' 'glib2' 'cairo' 'pango' 'gdk-pixbuf2' 'dbus' 'gcc-libs' 'glibc')
+optdepends=('org.freedesktop.secrets: keep secret variables in the system keyring (gnome-keyring, kwallet, KeePassXC)')
+provides=('soap-client')
+conflicts=('soap-client')
+options=('!strip' '!debug')
+source_x86_64=("soap-client_${pkgver}_amd64.deb::${url}/releases/download/v${pkgver}/soap-client_${pkgver}_amd64.deb")
+source_aarch64=("soap-client_${pkgver}_arm64.deb::${url}/releases/download/v${pkgver}/soap-client_${pkgver}_arm64.deb")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+  bsdtar -xf data.tar.* -C "$pkgdir"
+  install -Dm644 "$pkgdir/usr/share/doc/soap-client/copyright" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  rm -r "$pkgdir/usr/share/doc"
+}
