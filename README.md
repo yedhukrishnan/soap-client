@@ -51,8 +51,18 @@ npm run check           # svelte-check / TypeScript
 
 ## Build
 ```sh
-npm run tauri build     # macOS: .app + .dmg in target/release/bundle/
+npm run tauri build     # macOS: .app + .dmg in target/release/bundle/ (unsigned)
+npm run build:mac       # same, code-signed (see below)
 ```
+
+### Code signing (macOS)
+Signing gives the app a stable identity, so a Keychain "Always Allow" survives rebuilds.
+`build:mac` reads the identity from `src-tauri/tauri.signing.json`, which is git-ignored:
+```json
+{ "bundle": { "macOS": { "signingIdentity": "<identity name or SHA-1>" } } }
+```
+List usable identities with `security find-identity -v -p codesigning` (an "Apple Development"
+certificate works, as does a self-signed code-signing certificate from Keychain Access).
 
 ### Linux
 Install the WebKitGTK toolchain first, e.g. on Debian/Ubuntu:
@@ -65,7 +75,7 @@ Then `npm run tauri build` produces `.deb`, `.rpm` and AppImage bundles.
 - Chameleon includes (included schema without a targetNamespace) are not remapped
 - WSDL 2.0, MTOM/attachments and WS-Addressing are not supported
 - Without a Secret Service (some minimal Linux setups) secrets are kept in memory for the current run only
-- Unsigned dev builds: macOS may ask again for Keychain access after each rebuild
+- Unsigned builds (`tauri dev`, `tauri build`): macOS may ask again for Keychain access after each rebuild
 
 ## Author
 Yedhu Krishnan · [yedhu.me](https://yedhu.me) · dev@yedhu.me
