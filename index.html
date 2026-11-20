@@ -58,6 +58,22 @@
   .points h3 { margin: 10px 0 6px; font-size: 18px; letter-spacing: -0.01em; }
   .points p { margin: 0; color: var(--muted); font-size: 15.5px; }
 
+  .downloads { margin: 0 0 96px; }
+  .downloads h2 { font: 13px var(--mono); color: var(--green); font-weight: 400; margin: 0 0 18px; }
+  .downloads .list { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .downloads .row { display: grid; grid-template-columns: 200px 1fr auto; gap: 24px; align-items: center;
+                    padding: 20px 24px; border-top: 1px solid var(--line); }
+  .downloads .row:first-child { border-top: 0; }
+  .downloads h3 { margin: 0; font-size: 17px; }
+  .downloads h3 small { display: block; font: 12.5px var(--mono); color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .downloads p { margin: 0; color: var(--muted); font-size: 15px; }
+  .downloads code { font: 13px var(--mono); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+                    border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+  .downloads .get { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .downloads .get .btn { height: 38px; padding: 0 16px; font-size: 14px; }
+  .downloads .more { margin: 16px 0 0; font-size: 15px; color: var(--muted); }
+  .downloads .more a { color: var(--fg); }
+
   .gallery { margin: 0 0 96px; }
   .gallery h2 { font: 13px var(--mono); color: var(--green); font-weight: 400; margin: 0 0 18px; }
   .gallery .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -78,6 +94,8 @@
     .points { grid-template-columns: 1fr; }
     .gallery .grid { grid-template-columns: 1fr; gap: 28px; }
     footer a { margin: 0 18px 0 0; }
+    .downloads .row { grid-template-columns: 1fr; gap: 10px; }
+    .downloads .get { justify-content: flex-start; }
   }
 </style>
 </head>
@@ -94,10 +112,11 @@
         <h1>Small.<br>Secure.<br><span>Just SOAP.</span></h1>
         <p class="lead">A clutter-free desktop client for the SOAP services you still have to work with.</p>
         <div class="cta">
-          <a class="btn primary" href="https://github.com/yedhukrishnan/soap-client/releases/latest">Download for Mac</a>
+          <a class="btn primary" id="hero-mac" href="https://github.com/yedhukrishnan/soap-client/releases/latest" data-file="mac">Download for Mac</a>
+          <a class="btn" id="hero-linux" href="#download">Download for Linux</a>
           <a class="btn" href="https://github.com/yedhukrishnan/soap-client">Source code</a>
         </div>
-        <p class="note">macOS 11+ · Apple Silicon &amp; Intel</p>
+        <p class="note" id="hero-note">macOS 11+ · Apple Silicon &amp; Intel · <a href="#download">Linux packages</a></p>
       </div>
 
       <div class="code" aria-label="Example request and response">
@@ -128,6 +147,36 @@
       <div><code>04</code><h3>Ready-made requests</h3><p>Every operation comes with a sample request, built from the WSDL.</p></div>
       <div><code>05</code><h3>Switch environments</h3><p>Same requests, different servers and credentials. One click.</p></div>
       <div><code>06</code><h3>Checks on every send</h3><p>Status, XPath and fault checks run automatically on each response.</p></div>
+    </section>
+
+    <section class="downloads" id="download" aria-labelledby="download-title">
+      <h2 id="download-title">// download<span class="version"></span></h2>
+      <div class="list">
+        <div class="row">
+          <h3>macOS<small>11 or later</small></h3>
+          <p>One app for Apple Silicon and Intel. Signed and notarized by Apple.</p>
+          <div class="get"><a class="btn primary" href="https://github.com/yedhukrishnan/soap-client/releases/latest" data-file="mac">.dmg</a></div>
+        </div>
+        <div class="row">
+          <h3>Debian &amp; Ubuntu<small>.deb · x86_64 &amp; arm64</small></h3>
+          <p>Ubuntu 22.04+, Debian 12+ and distributions based on them (Linux Mint 21+, Pop!_OS 22.04+, elementary OS 7+).
+             Install with <code>sudo apt install ./soap-client_*.deb</code></p>
+          <div class="get">
+            <a class="btn" href="https://github.com/yedhukrishnan/soap-client/releases/latest" data-file="deb-amd64">x86_64</a>
+            <a class="btn" href="https://github.com/yedhukrishnan/soap-client/releases/latest" data-file="deb-arm64">arm64</a>
+          </div>
+        </div>
+        <div class="row">
+          <h3>Arch Linux<small>.pkg.tar.zst · x86_64</small></h3>
+          <p>Arch, Manjaro, EndeavourOS. Install with <code>sudo pacman -U soap-client-bin-*.pkg.tar.zst</code></p>
+          <div class="get"><a class="btn" href="https://github.com/yedhukrishnan/soap-client/releases/latest" data-file="arch">x86_64</a></div>
+        </div>
+      </div>
+      <p class="more">
+        Other Linux distributions aren't packaged yet: <a href="https://github.com/yedhukrishnan/soap-client#building-from-source">build from source</a>.
+        Checksums and older versions are on the <a href="https://github.com/yedhukrishnan/soap-client/releases">releases page</a>.
+        The app tells you when a new version is out.
+      </p>
     </section>
 
     <section class="gallery" aria-label="Screenshots">
@@ -162,5 +211,38 @@
       </span>
     </div>
   </footer>
+<script>
+  // Point the download buttons straight at the files of the latest release. latest.json is the
+  // same file the app checks for updates; without it, the buttons open the releases page.
+  (async () => {
+    const repo = "https://github.com/yedhukrishnan/soap-client/releases/download";
+    const files = {
+      mac: (v) => `SOAP-Client-${v}-macOS-universal.dmg`,
+      "deb-amd64": (v) => `soap-client_${v}_amd64.deb`,
+      "deb-arm64": (v) => `soap-client_${v}_arm64.deb`,
+      arch: (v) => `soap-client-bin-${v}-1-x86_64.pkg.tar.zst`,
+    };
+    // Linux visitors see Linux first.
+    const ua = navigator.userAgent;
+    if (/Linux/.test(ua) && !/Android/.test(ua)) {
+      document.getElementById("hero-mac").classList.remove("primary");
+      document.getElementById("hero-linux").classList.add("primary");
+      document.getElementById("hero-linux").after(document.getElementById("hero-mac"));
+      document.getElementById("hero-note").innerHTML =
+        'Ubuntu 22.04+ · Debian 12+ · Arch · x86_64 &amp; arm64 · <a href="#download">all downloads</a>';
+    }
+    try {
+      const res = await fetch("latest.json", { cache: "no-cache" });
+      const { version } = await res.json();
+      if (!/^\d+\.\d+\.\d+$/.test(version)) return;
+      for (const a of document.querySelectorAll("a[data-file]")) {
+        a.href = `${repo}/v${version}/${files[a.dataset.file](version)}`;
+      }
+      document.querySelector(".downloads .version").textContent = ` · v${version}`;
+    } catch {
+      // Keep the releases-page links.
+    }
+  })();
+</script>
 </body>
 </html>
