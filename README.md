@@ -3,6 +3,8 @@
 A lightweight, SoapUI-style desktop client for SOAP web services, for macOS and Linux.
 Built with Rust, Tauri 2 and Svelte 5.
 
+![SOAP Client sending a request: the CapitalCity operation returns New Delhi, with all four assertions passing](docs/screenshots/request-response.png)
+
 ## Download and install
 
 ### macOS
@@ -55,6 +57,21 @@ There are no prebuilt Linux packages yet. You can [build from source](#building)
   with a one-click *Move to secret variable*.
 - **Autosave**: your work is saved continuously and restored on the next launch.
   Projects can also be saved as `.json` files to share.
+
+### Screenshots
+
+**Variables and environments.** Switch between environments (here, one per country) and the same
+requests use their values.
+
+![The Variables & Environments dialog with India, Japan, Netherlands and Brazil environments](docs/screenshots/environments.png)
+
+**Responses.** Pretty-printed XML with status, timing and size, plus raw, header and sent-request views.
+
+![A ListOfCurrenciesByName response with 200 OK, 442 ms and 22.1 KB](docs/screenshots/response-view.png)
+
+**Getting started.** Import a WSDL from a URL or file, or open a saved project.
+
+![The welcome screen with Import WSDL and Open Project buttons](docs/screenshots/welcome.png)
 
 ### Keyboard shortcuts
 
