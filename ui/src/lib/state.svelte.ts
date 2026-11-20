@@ -18,6 +18,7 @@ export interface RunState {
 }
 
 const RECENT_KEY = "soap-client.recent";
+const COLLAPSED_KEY = "soap-client.collapsed";
 const PROJECT_FILTER = [{ name: "SOAP Client project", extensions: ["json"] }];
 
 export const uid = () => crypto.randomUUID();
@@ -83,6 +84,8 @@ class AppState {
   runs = $state<Record<string, RunState>>({});
   recent = $state<string[]>(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]"));
   importOpen = $state(false);
+  /** Collapsed sidebar groups ("<projectId>|<wsdlId>/<interface>"); a view preference, kept out of the project. */
+  collapsed = $state<Record<string, boolean>>(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}"));
   /** Id of the request whose "Duplicate" name dialog is open. */
   duplicating = $state<string | null>(null);
   varsOpen = $state(false);
@@ -133,6 +136,37 @@ class AppState {
     const iface = wsdl?.document?.interfaces.find((i) => i.name === req.interfaceName);
     const op = iface?.operations.find((o) => o.name === req.operationName);
     return wsdl && iface && op ? { wsdl, iface, op } : null;
+  }
+
+  /** Display name of an interface (user label, or the binding name). */
+  interfaceLabel(wsdlId: string, name: string) {
+    return this.project.wsdls.find((w) => w.id === wsdlId)?.interfaceLabels?.[name] || name;
+  }
+
+  /** Set an interface's display name; empty (or the original name) resets it. */
+  renameInterface(wsdlId: string, name: string, label: string) {
+    const w = this.project.wsdls.find((x) => x.id === wsdlId);
+    if (!w) return;
+    const l = label.trim();
+    const labels = (w.interfaceLabels ??= {});
+    if (!l || l === name) delete labels[name];
+    else labels[name] = l;
+    this.markDirty();
+  }
+
+  private collapseKey(wsdlId: string, name: string) {
+    return `${this.project.id}|${wsdlId}/${name}`;
+  }
+
+  isCollapsed(wsdlId: string, name: string) {
+    return !!this.collapsed[this.collapseKey(wsdlId, name)];
+  }
+
+  toggleCollapsed(wsdlId: string, name: string) {
+    const k = this.collapseKey(wsdlId, name);
+    if (this.collapsed[k]) delete this.collapsed[k];
+    else this.collapsed[k] = true;
+    localStorage.setItem(COLLAPSED_KEY, JSON.stringify(this.collapsed));
   }
 
   requestsFor(wsdlId: string, ifaceName: string, opName: string) {

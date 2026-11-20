@@ -1,6 +1,7 @@
 //! Project files: imported WSDLs, saved requests, variables and environments, stored as JSON.
 //! Secret variable values are never part of a project; they live in the OS keychain.
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -73,6 +74,10 @@ pub struct WsdlEntry {
     /// Documents referenced via wsdl:import / xsd:import / xsd:include, also stored.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub imports: Vec<ImportedDoc>,
+    /// User-chosen display names for interfaces (binding name -> label). Requests keep
+    /// referring to the real binding name, so renaming never breaks them.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub interface_labels: BTreeMap<String, String>,
     /// Parsed form; never written to disk, rebuilt on load.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub document: Option<WsdlDocument>,
@@ -101,6 +106,7 @@ pub async fn import_wsdl(source: &str) -> Result<WsdlEntry> {
         source: source.to_string(),
         text,
         imports,
+        interface_labels: BTreeMap::new(),
         document: Some(document),
     })
 }

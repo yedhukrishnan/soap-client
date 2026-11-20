@@ -91,7 +91,8 @@ async fn bad_endpoint_is_an_error() {
 #[tokio::test]
 async fn project_round_trip() {
     let fixture = format!("{}/tests/fixtures/calculator.wsdl", env!("CARGO_MANIFEST_DIR"));
-    let wsdl = project::import_wsdl(&fixture).await.unwrap();
+    let mut wsdl = project::import_wsdl(&fixture).await.unwrap();
+    wsdl.interface_labels.insert("CalculatorSoap".into(), "Calculator (prod)".into());
     let iface = &wsdl.document.as_ref().unwrap().interfaces[0];
     let op = &iface.operations[0];
     let mut s = spec(iface.endpoints[0].clone());
@@ -132,6 +133,7 @@ async fn project_round_trip() {
     assert_eq!(loaded.requests[0].assertions.len(), 1);
     assert_eq!(loaded.wsdls[0].document.as_ref().unwrap().interfaces.len(), 2);
     assert_eq!(loaded.environments[0].variables[0].value, "C1");
+    assert_eq!(loaded.wsdls[0].interface_labels["CalculatorSoap"], "Calculator (prod)");
     assert_eq!(loaded.active_environment.as_deref(), Some("e1"));
 
     // Session round trip keeps tabs and dirty state, and also strips secrets.

@@ -6,6 +6,8 @@
   let menuOpen = $state(false);
   let renamingProject = $state(false);
   let renamingId = $state<string | null>(null);
+  /** "<wsdlId>/<interface>" being renamed. */
+  let renamingIface = $state<string | null>(null);
   let expanded = $state<Record<string, boolean>>({});
 
   const opKey = (w: WsdlEntry, i: Interface, o: Operation) => `${w.id}/${i.name}/${o.name}`;
@@ -114,11 +116,45 @@
         <button class="icon" title="Remove WSDL" onclick={() => app.removeWsdl(w.id)}>×</button>
       </div>
       {#each w.document?.interfaces ?? [] as i (i.name)}
-        <div class="iface">
-          {i.name}
-          <span class="badge">SOAP {i.soapVersion}</span>
-        </div>
-        {#each i.operations.filter(matches) as o (o.name)}
+        {@const label = app.interfaceLabel(w.id, i.name)}
+        {@const ikey = `${w.id}/${i.name}`}
+        {@const filtering = filter.trim() !== ""}
+        {@const open = filtering || !app.isCollapsed(w.id, i.name)}
+        {#if renamingIface === ikey}
+          <div class="iface">
+            <input
+              class="rename"
+              value={label}
+              placeholder={i.name}
+              use:focusSelect
+              onkeydown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") renamingIface = null;
+              }}
+              onblur={(e) => {
+                if (renamingIface === ikey) app.renameInterface(w.id, i.name, e.currentTarget.value);
+                renamingIface = null;
+              }}
+            />
+          </div>
+        {:else}
+          <div class="iface" title={label === i.name ? i.name : `${label}\nBinding: ${i.name}`}>
+            <button
+              class="iface-toggle"
+              aria-expanded={open}
+              disabled={filtering}
+              onclick={() => app.toggleCollapsed(w.id, i.name)}
+              ondblclick={() => (renamingIface = ikey)}
+            >
+              <span class="chev">{open ? "▾" : "▸"}</span>
+              <span class="iface-name">{label}</span>
+            </button>
+            {#if !open}<span class="count" title="Operations">{i.operations.length}</span>{/if}
+            <span class="badge">SOAP {i.soapVersion}</span>
+            <button class="icon edit" title="Rename (double-click also works)" onclick={() => (renamingIface = ikey)}>✎</button>
+          </div>
+        {/if}
+        {#each open ? i.operations.filter(matches) : [] as o (o.name)}
           {@const reqs = app.requestsFor(w.id, i.name, o.name)}
           {@const key = opKey(w, i, o)}
           <button class="op" title={o.documentation ?? o.name} onclick={() => clickOperation(w, i, o)}>
@@ -305,11 +341,43 @@
     white-space: nowrap;
   }
   .iface {
-    padding: 6px 6px 2px;
+    padding: 6px 6px 2px 0;
     font-weight: 600;
     display: flex;
     gap: 6px;
     align-items: center;
+    min-width: 0;
+  }
+  .iface-toggle {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    padding: 1px 0 1px 6px;
+    border-radius: 5px;
+    text-align: left;
+    font-weight: 600;
+  }
+  .iface-toggle:hover:not(:disabled) {
+    background: var(--hover);
+  }
+  .iface-toggle:disabled {
+    cursor: default;
+  }
+  .iface-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .iface .badge {
+    flex-shrink: 0;
+  }
+  .iface:hover .icon.edit {
+    visibility: visible;
+  }
+  .icon.edit:hover {
+    color: var(--accent);
   }
   .badge {
     font-size: 10px;

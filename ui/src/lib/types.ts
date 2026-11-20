@@ -28,6 +28,8 @@ export interface WsdlEntry {
   text: string;
   /** Documents pulled in via wsdl:import / xsd:import / xsd:include. */
   imports?: { location: string; text: string }[];
+  /** Display names for interfaces (binding name -> label); requests keep the real name. */
+  interfaceLabels?: Record<string, string>;
   document?: WsdlDocument;
 }
 

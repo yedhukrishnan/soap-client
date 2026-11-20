@@ -12,7 +12,7 @@
         role="tab"
         tabindex="0"
         aria-selected={app.activeId === id}
-        title="{r.interfaceName} › {r.operationName} › {r.name}"
+        title="{app.interfaceLabel(r.wsdlId, r.interfaceName)} › {r.operationName} › {r.name}"
         onclick={() => (app.activeId = id)}
         onkeydown={(e) => e.key === "Enter" && (app.activeId = id)}
         onauxclick={(e) => e.button === 1 && app.closeTab(id)}
