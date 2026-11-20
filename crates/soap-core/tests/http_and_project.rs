@@ -192,6 +192,55 @@ async fn secrets_are_masked_in_sent_request_copy() {
     assert!(m.headers.iter().any(|(n, v)| n == "Authorization" && v == "Basic ••••••"));
 }
 
+/// A redirect to another origin must not forward the body (WS-Security password) or
+/// custom headers; the redirect itself is returned as the response.
+#[tokio::test]
+async fn cross_origin_redirects_are_not_followed() {
+    let elsewhere = MockServer::start().await;
+    Mock::given(wiremock::matchers::any())
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&elsewhere)
+        .await;
+    let server = MockServer::start().await;
+    for code in [301, 302, 303, 307, 308] {
+        Mock::given(wiremock::matchers::path(format!("/{code}")))
+            .respond_with(ResponseTemplate::new(code).insert_header("Location", format!("{}/collect", elsewhere.uri())))
+            .mount(&server)
+            .await;
+    }
+
+    for code in [301, 302, 303, 307, 308] {
+        let mut s = spec(format!("{}/{code}", server.uri()));
+        s.headers = vec![HeaderEntry { name: "X-Api-Key".into(), value: "k3y".into(), enabled: true }];
+        s.auth = Auth::WsSecurity(WsSecurity { username: "u".into(), password: "pw".into(), ..Default::default() });
+        let r = send(&s, &[]).await.unwrap();
+        assert_eq!(r.status, code);
+        assert!(r.headers.iter().any(|(n, v)| n == "location" && v.contains("/collect")));
+    }
+    // `elsewhere` verifies on drop that it received nothing.
+}
+
+#[tokio::test]
+async fn same_origin_redirects_are_followed_without_referer() {
+    let server = MockServer::start().await;
+    Mock::given(wiremock::matchers::path("/old"))
+        .respond_with(ResponseTemplate::new(307).insert_header("Location", "/new"))
+        .mount(&server)
+        .await;
+    Mock::given(wiremock::matchers::path("/new"))
+        .and(body_string_contains("<tem:intA>2</tem:intA>"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(RESP))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let r = send(&spec(format!("{}/old?key=s3cret", server.uri())), &[]).await.unwrap();
+    assert_eq!(r.status, 200);
+    let received = server.received_requests().await.unwrap();
+    assert!(received.iter().all(|q| !q.headers.contains_key("referer")));
+}
+
 /// Hits the public dneonline.com calculator. Run with `cargo test -- --ignored`.
 #[tokio::test]
 #[ignore = "requires network access"]

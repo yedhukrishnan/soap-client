@@ -183,12 +183,35 @@ async fn read_limited(mut resp: reqwest::Response, limit: u64) -> Result<Vec<u8>
     Ok(buf)
 }
 
+/// Most redirects followed within one origin.
+const MAX_REDIRECTS: usize = 10;
+
+/// Follow redirects only within the origin (scheme, host and port) of the request. A
+/// redirect anywhere else is returned as the response: following it would send custom
+/// headers and, for 307/308, the body (WS-Security passwords, secret variables) to
+/// another server, possibly over plain http.
+fn same_origin_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let same_origin = attempt.previous().first().is_some_and(|first| first.origin() == attempt.url().origin());
+        if !same_origin {
+            attempt.stop()
+        } else if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData> {
     let prepared = prepare(spec)?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(spec.timeout_secs.max(1)))
         .tls_danger_accept_invalid_certs(spec.accept_invalid_certs)
         .user_agent(concat!("soap-client/", env!("CARGO_PKG_VERSION")))
+        .redirect(same_origin_redirects())
+        // The endpoint URL may contain secret variables; never pass it on as a Referer.
+        .referer(false)
         .build()?;
 
     let mut req = client.post(&prepared.url).body(prepared.body.clone());
