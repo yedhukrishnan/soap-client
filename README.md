@@ -10,6 +10,17 @@ A lightweight, SoapUI-style desktop SOAP client for macOS and Linux, built with 
 - Auth: HTTP Basic, WS-Security UsernameToken (PasswordText or PasswordDigest, optional Timestamp), custom HTTP headers
 - Assertions: HTTP status, contains / not contains, XPath 1.0 match, no SOAP Fault, max response time
 - Projects saved as `*.soapproj.json` (WSDL text is embedded, so projects work offline)
+- **Autosave**: the whole working session (project, open tabs, active environment) is saved continuously
+  to the app data folder and restored on the next launch — closing the app never loses work.
+  `⌘S` still writes the project to its own file for sharing.
+- **Variables & environments**: use `{{name}}` in the body, endpoint, SOAPAction, headers or auth fields.
+  Project variables are defaults; environments (e.g. one per supplier or stage) override them and are
+  switched from the sidebar. Values are XML-escaped when inserted into the body; undefined variables
+  are highlighted in the editor and block sending.
+- **Secrets**: secret variables are stored in the OS credential store (macOS Keychain, Linux Secret
+  Service) — never in the project file or the autosaved session — and are masked as `••••••` in the
+  sent-request view. Literal passwords typed into a request body (`<password>`, `<token>`, …) or the
+  Auth tab are detected, with a one-click *Move to secret variable*.
 
 Requests can be duplicated (⧉ in the sidebar, or `⌘/Ctrl+D`); you're asked for the new name.
 
@@ -49,4 +60,5 @@ Then `npm run tauri build` produces `.deb`, `.rpm` and AppImage bundles.
 ## Limitations (v1)
 - Chameleon includes (included schema without a targetNamespace) are not remapped
 - WSDL 2.0, MTOM/attachments and WS-Addressing are not supported
-- Credentials are stored in plain text in the project file
+- Without a Secret Service (some minimal Linux setups) secrets are kept in memory for the current run only
+- Unsigned dev builds: macOS may ask again for Keychain access after each rebuild
