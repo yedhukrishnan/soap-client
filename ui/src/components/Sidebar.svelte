@@ -111,9 +111,11 @@
 
   <div class="tree">
     {#each app.project.wsdls as w (w.id)}
-      <div class="wsdl" title={`${w.source}${w.imports?.length ? `\n+ ${w.imports.length} imported document(s)` : ""}`}>
-        <span class="wsdl-name">{basename(w.source.replace(/\?wsdl$/i, ""))}</span>
-        <button class="icon" title="Remove WSDL" onclick={() => app.removeWsdl(w.id)}>×</button>
+      <div class="row group" title={`${w.source}${w.imports?.length ? `\n+ ${w.imports.length} imported document(s)` : ""}`}>
+        <span class="label caption">{basename(w.source.replace(/\?wsdl$/i, ""))}</span>
+        <span class="actions">
+          <button class="act danger" title="Remove WSDL" onclick={() => app.removeWsdl(w.id)}>×</button>
+        </span>
       </div>
       {#each w.document?.interfaces ?? [] as i (i.name)}
         {@const label = app.interfaceLabel(w.id, i.name)}
@@ -121,7 +123,8 @@
         {@const filtering = filter.trim() !== ""}
         {@const open = filtering || !app.isCollapsed(w.id, i.name)}
         {#if renamingIface === ikey}
-          <div class="iface">
+          <div class="row l0">
+            <span class="chev">{open ? "▾" : "▸"}</span>
             <input
               class="rename"
               value={label}
@@ -138,34 +141,51 @@
             />
           </div>
         {:else}
-          <div class="iface" title={label === i.name ? i.name : `${label}\nBinding: ${i.name}`}>
-            <button
-              class="iface-toggle"
-              aria-expanded={open}
-              disabled={filtering}
-              onclick={() => app.toggleCollapsed(w.id, i.name)}
-              ondblclick={() => (renamingIface = ikey)}
-            >
-              <span class="chev">{open ? "▾" : "▸"}</span>
-              <span class="iface-name">{label}</span>
-            </button>
-            {#if !open}<span class="count" title="Operations">{i.operations.length}</span>{/if}
+          <div
+            class="row l0 iface"
+            role="button"
+            tabindex="0"
+            aria-expanded={open}
+            title={label === i.name ? `${i.name} (double-click to rename)` : `${label}\nBinding: ${i.name}`}
+            onclick={() => !filtering && app.toggleCollapsed(w.id, i.name)}
+            ondblclick={() => (renamingIface = ikey)}
+            onkeydown={(e) => {
+              if ((e.key === "Enter" || e.key === " ") && !filtering) {
+                e.preventDefault();
+                app.toggleCollapsed(w.id, i.name);
+              } else if (e.key === "F2") renamingIface = ikey;
+            }}
+          >
+            <span class="chev">{open ? "▾" : "▸"}</span>
+            <span class="label strong">{label}</span>
             <span class="badge">SOAP {i.soapVersion}</span>
-            <button class="icon edit" title="Rename (double-click also works)" onclick={() => (renamingIface = ikey)}>✎</button>
+            <!-- Count slot is always reserved so badges line up whether expanded or not. -->
+            <span class="count" class:invisible={open} title="Operations">{i.operations.length}</span>
+            <span class="actions">
+              <button
+                class="act"
+                title="Rename"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  renamingIface = ikey;
+                }}>✎</button
+              >
+            </span>
           </div>
         {/if}
         {#each open ? i.operations.filter(matches) : [] as o (o.name)}
           {@const reqs = app.requestsFor(w.id, i.name, o.name)}
           {@const key = opKey(w, i, o)}
-          <button class="op" title={o.documentation ?? o.name} onclick={() => clickOperation(w, i, o)}>
+          <button class="row l1 op" title={o.documentation ?? o.name} onclick={() => clickOperation(w, i, o)}>
             <span class="chev">{reqs.length ? (expanded[key] ? "▾" : "▸") : ""}</span>
-            <span class="op-name">{o.name}</span>
+            <span class="label">{o.name}</span>
             {#if reqs.length}<span class="count">{reqs.length}</span>{/if}
           </button>
           {#if expanded[key]}
             {#each reqs as r (r.id)}
-              <div class="req" class:active={app.activeId === r.id}>
-                {#if renamingId === r.id}
+              {#if renamingId === r.id}
+                <div class="row l2">
+                  <span class="chev"></span>
                   <input
                     class="rename"
                     value={r.name}
@@ -183,19 +203,48 @@
                       renamingId = null;
                     }}
                   />
-                {:else}
-                  <button
-                    class="req-name"
-                    onclick={() => app.openRequest(r.id)}
-                    ondblclick={() => (renamingId = r.id)}
-                    title="Double-click to rename">{r.name}</button
-                  >
-                  <button class="icon dup" title="Duplicate request (⌘D)" onclick={() => (app.duplicating = r.id)}>⧉</button>
-                  <button class="icon" title="Delete request" onclick={() => app.deleteRequest(r.id)}>×</button>
-                {/if}
-              </div>
+                </div>
+              {:else}
+                <div
+                  class="row l2 req"
+                  class:active={app.activeId === r.id}
+                  role="button"
+                  tabindex="0"
+                  title="Double-click to rename"
+                  onclick={() => app.openRequest(r.id)}
+                  ondblclick={() => (renamingId = r.id)}
+                  onkeydown={(e) => {
+                    if (e.key === "Enter") app.openRequest(r.id);
+                    else if (e.key === "F2") renamingId = r.id;
+                  }}
+                >
+                  <span class="chev"></span>
+                  <span class="label">{r.name}</span>
+                  <span class="actions">
+                    <button
+                      class="act"
+                      title="Duplicate request (⌘D)"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        app.duplicating = r.id;
+                      }}>⧉</button
+                    >
+                    <button
+                      class="act danger"
+                      title="Delete request"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        app.deleteRequest(r.id);
+                      }}>×</button
+                    >
+                  </span>
+                </div>
+              {/if}
             {/each}
-            <button class="req new" onclick={() => app.newRequest(w, i, o)}>+ New request</button>
+            <button class="row l2 new" onclick={() => app.newRequest(w, i, o)}>
+              <span class="chev"></span>
+              <span class="label">+ New request</span>
+            </button>
           {/if}
         {/each}
       {/each}
@@ -323,143 +372,153 @@
   .tree {
     flex: 1;
     overflow: auto;
-    padding: 0 4px 8px;
+    padding: 0 6px 8px;
   }
-  .wsdl {
+
+  /* One row style for every tree level: same height, hover and right-hand column. */
+  .row {
+    --indent: 14px;
+    position: relative;
     display: flex;
     align-items: center;
-    padding: 8px 6px 2px;
+    gap: 6px;
+    width: 100%;
+    height: 24px;
+    padding: 0 6px 0 calc(4px + var(--level, 0) * var(--indent));
+    border-radius: 5px;
+    text-align: left;
+    color: var(--fg);
+    cursor: default;
+    min-width: 0;
+  }
+  .row.l0 {
+    --level: 0;
+  }
+  .row.l1 {
+    --level: 1;
+  }
+  .row.l2 {
+    --level: 2;
+  }
+  .row:not(.group):hover {
+    background: var(--hover);
+  }
+  .row.active,
+  .row.active:hover {
+    background: var(--selected);
+  }
+  .row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .chev {
+    flex: 0 0 10px;
+    margin-right: -2px;
+    color: var(--muted);
+    font-size: 10px;
+    text-align: center;
+  }
+  .label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .label.strong {
+    font-weight: 600;
+  }
+
+  .row.group {
+    height: 22px;
+    margin-top: 10px;
+    padding-left: 4px;
+  }
+  .row.group:first-child {
+    margin-top: 4px;
+  }
+  .caption {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
     color: var(--muted);
   }
-  .wsdl-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .iface {
-    padding: 6px 6px 2px 0;
-    font-weight: 600;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    min-width: 0;
-  }
-  .iface-toggle {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex: 1;
-    min-width: 0;
-    padding: 1px 0 1px 6px;
-    border-radius: 5px;
-    text-align: left;
-    font-weight: 600;
-  }
-  .iface-toggle:hover:not(:disabled) {
-    background: var(--hover);
-  }
-  .iface-toggle:disabled {
-    cursor: default;
-  }
-  .iface-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .iface .badge {
+
+  .badge,
+  .count {
     flex-shrink: 0;
-  }
-  .iface:hover .icon.edit {
-    visibility: visible;
-  }
-  .icon.edit:hover {
-    color: var(--accent);
+    font-size: 10px;
+    line-height: 16px;
+    border-radius: 4px;
+    color: var(--muted);
   }
   .badge {
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    border-radius: 4px;
     padding: 0 4px;
-  }
-  .op {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    width: 100%;
-    padding: 3px 6px;
-    border-radius: 5px;
-    text-align: left;
-  }
-  .op:hover,
-  .req:hover {
-    background: var(--hover);
-  }
-  .chev {
-    width: 12px;
-    color: var(--muted);
-    font-size: 10px;
-  }
-  .op-name {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    border: 1px solid var(--border-strong);
+    line-height: 14px;
   }
   .count {
-    font-size: 11px;
-    color: var(--muted);
+    min-width: 20px;
+    padding: 0 5px;
+    text-align: center;
     background: var(--hover);
     border-radius: 8px;
-    padding: 0 6px;
   }
-  .req {
-    display: flex;
-    align-items: center;
-    padding: 1px 6px 1px 28px;
-    border-radius: 5px;
-    width: 100%;
-    text-align: left;
-  }
-  .req.active {
-    background: var(--selected);
-  }
-  .req-name {
-    flex: 1;
-    text-align: left;
-    padding: 2px 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .req.new {
-    color: var(--muted);
-    padding-top: 3px;
-    padding-bottom: 3px;
-  }
-  .icon {
+  .invisible {
     visibility: hidden;
+  }
+
+  .row.new .label {
     color: var(--muted);
-    padding: 0 4px;
-    border-radius: 4px;
   }
-  .req:hover .icon,
-  .wsdl:hover .icon {
-    visibility: visible;
-  }
-  .icon:hover {
-    color: var(--danger);
-  }
-  .icon.dup:hover {
+  .row.new:hover .label {
     color: var(--accent);
   }
+
+  /* Hover actions float over the right edge instead of taking layout space. */
+  .actions {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    gap: 2px;
+    padding-left: 6px;
+    border-radius: 5px;
+    background: linear-gradient(var(--hover), var(--hover)), var(--bg-side);
+  }
+  .row.group .actions {
+    background: var(--bg-side);
+  }
+  .row.active .actions {
+    background: linear-gradient(var(--selected), var(--selected)), var(--bg-side);
+  }
+  .row:hover .actions,
+  .row:focus-within .actions {
+    display: flex;
+  }
+  .act {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    color: var(--muted);
+    line-height: 20px;
+    text-align: center;
+  }
+  .act:hover {
+    background: var(--hover);
+    color: var(--accent);
+  }
+  .act.danger:hover {
+    color: var(--danger);
+  }
+
   .rename {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    padding: 2px 6px !important;
   }
   .empty {
     color: var(--muted);
