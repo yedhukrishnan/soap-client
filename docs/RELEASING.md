@@ -58,6 +58,15 @@ run on Arch Linux (this is the only way to get an aarch64 Arch package). Output 
    ```sh
    gh release edit v<version> --draft=false --notes-file <release-notes.md>
    ```
+5. Tell installed apps about the release: update `latest.json` on the `gh-pages` branch
+   (served at `https://yedhu.me/soap-client/latest.json`). Add the version to `securityReleases`
+   if the release fixes a security issue; apps then show a more prominent notice that can't be skipped.
+
+   ```json
+   { "version": "<version>", "securityReleases": ["0.2.1", "0.2.2"] }
+   ```
+
+   Only publish it after the release, because the notice links to the latest release.
 
 ## Other macOS builds
 

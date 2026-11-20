@@ -7,7 +7,7 @@ import { disposeModel } from "./monaco";
 import { plural } from "./platform";
 import type {
   AssertionResult, Environment, Interface, Operation, Project, ResponseData, SavedRequest, SecretBackend,
-  VarBinding, Variable, WsdlEntry,
+  UpdateStatus, VarBinding, Variable, WsdlEntry,
 } from "./types";
 
 export interface RunState {
@@ -100,6 +100,8 @@ class AppState {
   /** keychain key -> has a stored value */
   secretStatus = $state<Record<string, boolean>>({});
   keychainNotice = $state<KeychainNotice | null>(null);
+  /** Shown in the corner: an available update, or the result of Check for Updates. */
+  updateStatus = $state<UpdateStatus | null>(null);
   /** Request whose endpoint is being turned into a variable. */
   endpointPrompt = $state<string | null>(null);
   private consentPending: Promise<boolean> | null = null;

@@ -156,3 +156,16 @@ export interface ResponseData {
   sizeBytes: number;
   request: PreparedRequest;
 }
+
+/** A newer release (soap-core `update::UpdateInfo`). */
+export interface UpdateInfo {
+  version: string;
+  /** A release newer than the running one fixed a security issue. */
+  security: boolean;
+}
+
+/** The outcome of an update check, from the automatic check or the `update-status` event. */
+export type UpdateStatus =
+  | { kind: "available"; update: UpdateInfo }
+  | { kind: "current"; version: string }
+  | { kind: "failed"; message: string };

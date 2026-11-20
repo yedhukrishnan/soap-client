@@ -1,6 +1,7 @@
 mod commands;
 mod menu;
 mod secrets;
+mod updates;
 
 pub fn run() {
     tauri::Builder::default()
@@ -17,6 +18,7 @@ pub fn run() {
         })
         .manage(commands::InFlight::default())
         .manage(secrets::Secrets::default())
+        .manage(updates::Updates::default())
         .invoke_handler(tauri::generate_handler![
             commands::import_wsdl,
             commands::send_request,
@@ -33,6 +35,9 @@ pub fn run() {
             commands::secret_rename,
             commands::secret_status,
             commands::secret_project_has,
+            updates::update_check_auto,
+            updates::update_skip,
+            updates::update_open,
         ])
         .run(tauri::generate_context!())
         .expect("error while running SOAP client");

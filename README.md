@@ -53,6 +53,12 @@ Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for macOS and Linux rele
 
 Secrets never leave your Keychain except to be sent to your own endpoints, shared project files can't
 use your saved secrets without asking, and WSDLs from the web can't read local files.
+
+Once a day, the app downloads `https://yedhu.me/soap-client/latest.json` to see whether a newer
+version exists. It sends nothing about you or your projects; like any download, the server
+(GitHub Pages) sees your IP address.
+To turn it off, uncheck **Check for Updates Automatically** in the app menu (macOS) or the Help menu (Linux).
+
 To report a security concern, see [SECURITY.md](SECURITY.md).
 
 ## License

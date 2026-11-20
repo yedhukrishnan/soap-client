@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { onMount } from "svelte";
   import DuplicateDialog from "./components/DuplicateDialog.svelte";
@@ -10,9 +11,15 @@
   import ResponsePane from "./components/ResponsePane.svelte";
   import SecretPromptDialog from "./components/SecretPromptDialog.svelte";
   import Sidebar from "./components/Sidebar.svelte";
+  import UpdateNotice from "./components/UpdateNotice.svelte";
   import VariablesDialog from "./components/VariablesDialog.svelte";
+  import { api } from "./lib/api";
   import { shortcut } from "./lib/platform";
   import { app } from "./lib/state.svelte";
+  import type { UpdateStatus } from "./lib/types";
+
+  /** Delay before the automatic update check, so it never slows down startup. */
+  const UPDATE_CHECK_DELAY_MS = 5000;
 
   let sidebarWidth = $state(Number(localStorage.getItem("soap-client.sidebar")) || 260);
   let splitPct = $state(Number(localStorage.getItem("soap-client.split")) || 50);
@@ -38,7 +45,20 @@
       await app.saveSessionNow();
       await win.destroy();
     });
-    return () => unlisten.then((f) => f());
+    // At most daily and only if enabled (decided by the backend); failures are silent.
+    const updateTimer = setTimeout(() => {
+      api
+        .updateCheckAuto()
+        .then((update) => update && (app.updateStatus ??= { kind: "available", update }))
+        .catch(() => {});
+    }, UPDATE_CHECK_DELAY_MS);
+    // The result of Help › Check for Updates… (or the app menu on macOS).
+    const unlistenUpdate = listen<UpdateStatus>("update-status", (e) => (app.updateStatus = e.payload));
+    return () => {
+      clearTimeout(updateTimer);
+      unlisten.then((f) => f());
+      unlistenUpdate.then((f) => f());
+    };
   });
 
   function onKey(e: KeyboardEvent) {
@@ -149,6 +169,10 @@
 
 {#if app.keychainNotice}
   <KeychainNotice notice={app.keychainNotice} />
+{/if}
+
+{#if app.updateStatus}
+  <UpdateNotice status={app.updateStatus} />
 {/if}
 
 {#if app.duplicating}

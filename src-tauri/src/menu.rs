@@ -1,9 +1,11 @@
 //! Application menu: the standard menus, a clean About panel, and a Help menu with
 //! links. Links are opened from Rust, so the webview needs no opener permission.
 
-use tauri::menu::{AboutMetadata, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_opener::OpenerExt;
+
+use crate::updates;
 
 pub const AUTHOR: &str = "Yedhu Krishnan";
 pub const EMAIL: &str = "dev@yedhu.me";
@@ -39,6 +41,15 @@ fn about_metadata<'a, R: Runtime>(app: &'a AppHandle<R>) -> AboutMetadata<'a> {
 
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let about = PredefinedMenuItem::about(app, None, Some(about_metadata(app)))?;
+    let check_now = MenuItem::with_id(app, updates::CHECK_NOW_ID, "Check for Updates…", true, None::<&str>)?;
+    let auto_check = CheckMenuItem::with_id(
+        app,
+        updates::AUTO_CHECK_ID,
+        "Check for Updates Automatically",
+        true,
+        updates::prefs(app).auto_check,
+        None::<&str>,
+    )?;
 
     let link = |i: usize| {
         let (id, label, _) = LINKS[i];
@@ -57,6 +68,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             #[cfg(not(target_os = "macos"))]
             &PredefinedMenuItem::separator(app)?,
             #[cfg(not(target_os = "macos"))]
+            &check_now,
+            #[cfg(not(target_os = "macos"))]
+            &auto_check,
+            #[cfg(not(target_os = "macos"))]
+            &PredefinedMenuItem::separator(app)?,
+            #[cfg(not(target_os = "macos"))]
             &about,
         ],
     )?;
@@ -68,6 +85,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         &[
             &about,
+            &check_now,
+            &auto_check,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, None)?,
             &PredefinedMenuItem::separator(app)?,
@@ -120,9 +139,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     }
 }
 
-/// Open the URL behind a Help-menu item. Only the fixed URLs above can be opened.
+/// Open the URL behind a Help-menu item (only the fixed URLs above can be opened), or
+/// handle the update items.
 pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
-    if let Some((_, _, url)) = LINKS.iter().find(|(id, _, _)| event.id() == *id) {
+    if event.id() == updates::CHECK_NOW_ID {
+        updates::check_now(app);
+    } else if event.id() == updates::AUTO_CHECK_ID {
+        updates::toggle_auto(app);
+    } else if let Some((_, _, url)) = LINKS.iter().find(|(id, _, _)| event.id() == *id) {
         let _ = app.opener().open_url(*url, None::<&str>);
     }
 }

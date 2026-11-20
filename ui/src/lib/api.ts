@@ -1,7 +1,7 @@
 // Typed wrappers around the Tauri commands in src-tauri/src/commands.rs.
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  Assertion, AssertionResult, Project, RequestSpec, ResponseData, SecretBackend, Session, VarBinding, WsdlEntry,
+  Assertion, AssertionResult, Project, RequestSpec, ResponseData, SecretBackend, Session, UpdateInfo, VarBinding, WsdlEntry,
 } from "./types";
 
 export const api = {
@@ -24,4 +24,8 @@ export const api = {
   secretRename: (from: string, to: string) => invoke<void>("secret_rename", { from, to }),
   secretStatus: (keys: string[]) => invoke<boolean[]>("secret_status", { keys }),
   secretProjectHas: (projectId: string) => invoke<boolean>("secret_project_has", { projectId }),
+
+  updateCheckAuto: () => invoke<UpdateInfo | null>("update_check_auto"),
+  updateSkip: (version: string) => invoke<void>("update_skip", { version }),
+  updateOpen: () => invoke<void>("update_open"),
 };
