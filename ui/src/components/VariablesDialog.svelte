@@ -26,20 +26,44 @@
     }
   }
 
-  function uniqueName(base: string) {
-    let n = base;
-    for (let i = 2; vars.some((v) => v.name === n); i++) n = `${base}${i}`;
-    return n;
-  }
+  /** The row just added with "+ Add variable"; its name field gets focus. */
+  let justAdded = $state<Variable | null>(null);
 
   function addVariable() {
-    app.varsOf(scope).push({ name: uniqueName("newVariable"), value: "", secret: false });
+    const list = app.varsOf(scope);
+    list.push({ name: "", value: "", secret: false });
+    justAdded = list[list.length - 1];
     app.markDirty();
+  }
+
+  /** Drop rows that were added but never named (and hold no secret). */
+  function pruneUnnamed() {
+    let removed = false;
+    for (const s of ["project", ...app.project.environments.map((e) => e.id)]) {
+      const list = app.varsOf(s);
+      for (let k = list.length - 1; k >= 0; k--) {
+        if (!list[k].name.trim() && !list[k].secret) {
+          list.splice(k, 1);
+          removed = true;
+        }
+      }
+    }
+    if (removed) app.markDirty();
+  }
+
+  function selectScope(s: Scope) {
+    pruneUnnamed();
+    scope = s;
+  }
+
+  function focusIf(node: HTMLInputElement, focus: boolean) {
+    if (focus) node.focus();
   }
 
   function commitName(v: Variable, input: HTMLInputElement) {
     const name = input.value.trim();
     if (name === v.name) return;
+    if (!name && !v.name) return;
     if (!VAR_NAME.test(name)) {
       error = `"${name}" is not a valid name (letters, digits, _ . - ; must not start with a digit)`;
       input.value = v.name;
@@ -63,6 +87,7 @@
   function newEnvironment() {
     let name = "New environment";
     for (let i = 2; app.project.environments.some((e) => e.name === name); i++) name = `New environment ${i}`;
+    pruneUnnamed();
     const env = app.addEnvironment(name);
     scope = env.id;
     renamingEnv = env.id;
@@ -73,7 +98,10 @@
     n.select();
   }
 
-  const close = () => (app.varsOpen = false);
+  const close = () => {
+    pruneUnnamed();
+    app.varsOpen = false;
+  };
 </script>
 
 <div class="backdrop" role="presentation" onclick={close}>
@@ -93,7 +121,7 @@
 
     <div class="body">
       <nav>
-        <button class="scope" class:on={scope === "project"} onclick={() => (scope = "project")}>
+        <button class="scope" class:on={scope === "project"} onclick={() => selectScope("project")}>
           Project
           <span class="sub">defaults for all environments</span>
         </button>
@@ -122,7 +150,7 @@
             />
           {:else}
             <div class="scope env" class:on={scope === env.id}>
-              <button class="envbtn" onclick={() => (scope = env.id)} ondblclick={() => (renamingEnv = env.id)} title="Double-click to rename">
+              <button class="envbtn" onclick={() => selectScope(env.id)} ondblclick={() => (renamingEnv = env.id)} title="Double-click to rename">
                 {env.name}
                 {#if app.project.activeEnvironment === env.id}<span class="active">active</span>{/if}
               </button>
@@ -162,7 +190,14 @@
               {@const key = app.secretKey(scope, v.name)}
               <tr>
                 <td class="name">
-                  <input value={v.name} spellcheck="false" onchange={(e) => commitName(v, e.currentTarget)} />
+                  <input
+                    value={v.name}
+                    placeholder="name, e.g. supplierId"
+                    spellcheck="false"
+                    use:focusIf={v === justAdded}
+                    onchange={(e) => commitName(v, e.currentTarget)}
+                    onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  />
                   {#if overrides(v.name)}<span class="tag" title="Overrides the project value">overrides</span>{/if}
                 </td>
                 <td>
@@ -180,13 +215,14 @@
                       onkeydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                     />
                   {:else}
-                    <input bind:value={v.value} oninput={() => app.markDirty()} spellcheck="false" />
+                    <input bind:value={v.value} placeholder="value" oninput={() => app.markDirty()} spellcheck="false" />
                   {/if}
                 </td>
                 <td class="c">
                   <button
                     class="lock"
                     class:on={v.secret}
+                    disabled={!v.name}
                     title={v.secret ? "Secret (stored in keychain) — click to make plain" : "Plain (saved in project) — click to make secret"}
                     onclick={() => run(() => app.setSecret(scope, v, !v.secret))}>{v.secret ? "🔒" : "🔓"}</button
                   >

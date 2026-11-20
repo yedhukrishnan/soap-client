@@ -23,6 +23,9 @@ const PROJECT_FILTER = [{ name: "SOAP Client project", extensions: ["json"] }];
 
 export const uid = () => crypto.randomUUID();
 
+/** WSDLs sometimes ship placeholders like "[Endpoint URL]" instead of a real address. */
+export const isHttpUrl = (s: string | undefined) => !!s && /^https?:\/\/\S+$/i.test(s.trim());
+
 const emptyProject = (): Project => ({
   version: 1,
   id: uid(),
@@ -138,6 +141,23 @@ class AppState {
     return wsdl && iface && op ? { wsdl, iface, op } : null;
   }
 
+  /**
+   * Requests created before placeholder handling may hold a WSDL's non-URL address
+   * (e.g. "[Endpoint URL]") as literal text; clear exactly those so the hint shows.
+   */
+  private clearPlaceholderEndpoints() {
+    let changed = false;
+    for (const r of this.project.requests) {
+      const eps = this.operationOf(r)?.iface.endpoints ?? [];
+      const ep = r.spec.endpoint.trim();
+      if (ep && !isHttpUrl(ep) && eps.includes(ep)) {
+        r.spec.endpoint = "";
+        changed = true;
+      }
+    }
+    if (changed) this.markDirty();
+  }
+
   /** Display name of an interface (user label, or the binding name). */
   interfaceLabel(wsdlId: string, name: string) {
     return this.project.wsdls.find((w) => w.id === wsdlId)?.interfaceLabels?.[name] || name;
@@ -193,7 +213,7 @@ class AppState {
       interfaceName: iface.name,
       operationName: op.name,
       spec: {
-        endpoint: templated ?? iface.endpoints[0] ?? "",
+        endpoint: templated ?? iface.endpoints.find(isHttpUrl) ?? "",
         soapVersion: iface.soapVersion,
         soapAction: op.soapAction,
         body: op.sampleRequest,
@@ -359,6 +379,7 @@ class AppState {
     try {
       const project = await api.openProject(chosen);
       this.reset(project, chosen);
+      this.clearPlaceholderEndpoints();
       this.remember(chosen);
       if (project.requests[0]) this.openRequest(project.requests[0].id);
     } catch (e) {
@@ -609,6 +630,7 @@ class AppState {
         const ids = new Set(s.project.requests.map((r) => r.id));
         this.openTabs = s.openTabs.filter((id) => ids.has(id));
         this.activeId = s.activeId && ids.has(s.activeId) ? s.activeId : (this.openTabs[0] ?? null);
+        this.clearPlaceholderEndpoints();
       }
     } catch (e) {
       await message(String(e), { title: "Session not restored", kind: "warning" });

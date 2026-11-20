@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "../lib/api";
   import { findLiteralSecrets, replaceLiteralSecret } from "../lib/secrets";
-  import { app } from "../lib/state.svelte";
+  import { app, isHttpUrl } from "../lib/state.svelte";
   import type { SavedRequest } from "../lib/types";
   import AssertionsEditor from "./AssertionsEditor.svelte";
   import AuthEditor from "./AuthEditor.svelte";
@@ -14,7 +14,14 @@
 
   const run = $derived(app.runs[req.id]);
   const source = $derived(app.operationOf(req));
-  const endpoints = $derived(source?.iface.endpoints ?? []);
+  const endpoints = $derived((source?.iface.endpoints ?? []).filter(isHttpUrl));
+  /** e.g. "[Endpoint URL]" from PromoStandards WSDLs: shown as a hint, never as text. */
+  const wsdlPlaceholder = $derived(source?.iface.endpoints.find((e) => !isHttpUrl(e)));
+  const endpointHint = $derived(
+    wsdlPlaceholder
+      ? `${wsdlPlaceholder}: e.g. https://supplier.com/service or {{productDataUrl}}`
+      : "https://host/service or {{serviceUrl}}",
+  );
   const headerCount = $derived(req.spec.headers.filter((h) => h.enabled && h.name).length);
   const literalSecrets = $derived(findLiteralSecrets(req.spec.body));
   const templated = $derived(req.spec.endpoint.includes("{{"));
@@ -68,7 +75,7 @@
     <input
       class="endpoint"
       list="endpoints-{req.id}"
-      placeholder="https://host/service"
+      placeholder={endpointHint}
       bind:value={req.spec.endpoint}
       oninput={() => app.markDirty()}
       spellcheck="false"
