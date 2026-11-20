@@ -2,6 +2,13 @@
   "name": "soap-client",
   "private": true,
   "version": "0.1.0",
+  "description": "A lightweight SOAP client for macOS and Linux",
+  "author": "Yedhu Krishnan <dev@yedhu.me> (https://yedhu.me)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yedhukrishnan/soap-client.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -23,5 +30,8 @@
     "@tauri-apps/api": "^2.12.5",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "monaco-editor": "^0.57.0"
+  },
+  "overrides": {
+    "dompurify": "^3.4.18"
   }
 }

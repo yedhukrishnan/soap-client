@@ -1,81 +1,107 @@
 # SOAP Client
 
-A lightweight, SoapUI-style desktop SOAP client for macOS and Linux, built with Rust + Tauri 2 + Svelte 5.
+A lightweight, SoapUI-style desktop client for SOAP web services, for macOS and Linux.
+Built with Rust, Tauri 2 and Svelte 5.
 
 ## Features
-- Import a WSDL 1.1 from a URL or file; `wsdl:import`, `xsd:import`/`include`/`redefine` are followed recursively (relative to the referencing document) and stored in the project; browse bindings → operations
-- SoapUI-style sample requests generated from the XSD (optional/repeat/choice comments, enums, attributes, extensions, recursion guard)
-- SOAP 1.1 and 1.2, document/literal and rpc/literal, `soap:header` parts
-- Tabbed requests with a Monaco XML editor; pretty / raw / headers / sent-request views of the response
-- Auth: HTTP Basic, WS-Security UsernameToken (PasswordText or PasswordDigest, optional Timestamp), custom HTTP headers
-- Assertions: HTTP status, contains / not contains, XPath 1.0 match, no SOAP Fault, max response time
-- Projects saved as `*.soapproj.json` (WSDL text is embedded, so projects work offline)
-- **Autosave**: the whole working session (project, open tabs, active environment) is saved continuously
-  to the app data folder and restored on the next launch — closing the app never loses work.
-  `⌘S` still writes the project to its own file for sharing.
-- **Variables & environments**: use `{{name}}` in the body, endpoint, SOAPAction, headers or auth fields.
-  Project variables are defaults; environments (e.g. one per supplier or stage) override them and are
-  switched from the sidebar. Endpoints can be per environment too: the `{{ }}` button next to a URL moves it
-  into a variable (optionally for every request using that URL), the resolved URL is shown under the
-  endpoint, and new requests for the same binding reuse the templated endpoint. Values are XML-escaped when inserted into the body; undefined variables
-  are highlighted in the editor and block sending.
-- **Secrets**: secret variables are stored in the OS credential store (macOS Keychain, Linux Secret
-  Service) — never in the project file or the autosaved session — and are masked as `••••••` in the
-  sent-request view. The app only ever reads its own entries (service `dev.soapclient.app`; the service
-  name is fixed in code), never other Keychain items. A one-time note explains the macOS Keychain
-  prompt before it first appears. Literal passwords typed into a request body (`<password>`, `<token>`, …) or the
-  Auth tab are detected, with a one-click *Move to secret variable*.
 
-Requests can be duplicated (⧉ in the sidebar, or `⌘/Ctrl+D`); you're asked for the new name.
+- **WSDL import** from a URL or file. Imported WSDLs and schemas (`wsdl:import`, `xsd:import`,
+  `xsd:include`, `xsd:redefine`) are loaded too and stored in the project, so it works offline.
+- **Sample requests** generated from the schemas, SoapUI-style: optional and repeated elements,
+  choices, enumerations, attributes and type extensions.
+- **SOAP 1.1 and 1.2**, document/literal and rpc/literal, `soap:header` parts.
+- **Request editor** with tabs, an XML editor, and pretty, raw, header and sent-request views of the response.
+- **Authentication**: HTTP Basic and WS-Security UsernameToken (text or digest password, optional
+  timestamp), plus custom HTTP headers.
+- **Assertions**: HTTP status, body contains / does not contain, XPath 1.0 match, no SOAP Fault and
+  maximum response time.
+- **Variables and environments**: use `{{name}}` in the body, endpoint, SOAPAction, headers or auth
+  fields. Environments (for example, one per supplier) override project defaults and can hold
+  their own endpoint URLs; switch between them from the sidebar.
+- **Secrets** are stored in the macOS Keychain or the Linux system keyring, never in project files,
+  and are masked in the sent-request view. Passwords typed literally into a request are detected,
+  with a one-click *Move to secret variable*.
+- **Autosave**: your work is saved continuously and restored on the next launch.
+  Projects can also be saved as `.json` files to share.
 
-Shortcuts: `⌘/Ctrl+Enter` send · `⌘/Ctrl+D` duplicate · `⌘/Ctrl+S` save · `⇧⌘/Ctrl+Shift+S` save as · `⌘/Ctrl+O` open.
+### Keyboard shortcuts
 
-## Layout
-```
-crates/soap-core   Pure Rust library: WSDL/XSD parsing, sample generation, envelope + WS-Security,
-                   HTTP (reqwest/rustls), assertions, project files. No UI dependencies.
-src-tauri          Thin Tauri command layer (src/commands.rs)
-ui                 Svelte 5 + TypeScript frontend (Vite)
-```
+| Action | macOS | Linux |
+|---|---|---|
+| Send request | ⌘↵ | Ctrl+Enter |
+| Duplicate request | ⌘D | Ctrl+D |
+| Save / Save as | ⌘S / ⇧⌘S | Ctrl+S / Ctrl+Shift+S |
+| Open project | ⌘O | Ctrl+O |
 
-## Develop
-Prerequisites: Rust (stable), Node 20+.
+## Development
 
-```sh
-npm install
-npm run tauri dev       # run the app with hot reload
-cargo test              # core tests
-cargo test -- --ignored # also run the live test against dneonline.com
-npm run check           # svelte-check / TypeScript
-```
+Prerequisites: Rust (stable) and Node.js 20.19+ or 22.12+.
+On Linux, also install the WebKitGTK toolchain, e.g. on Debian/Ubuntu:
 
-## Build
-```sh
-npm run tauri build     # macOS: .app + .dmg in target/release/bundle/ (unsigned)
-npm run build:mac       # same, code-signed (see below)
-```
-
-### Code signing (macOS)
-Signing gives the app a stable identity, so a Keychain "Always Allow" survives rebuilds.
-`build:mac` reads the identity from `src-tauri/tauri.signing.json`, which is git-ignored:
-```json
-{ "bundle": { "macOS": { "signingIdentity": "<identity name or SHA-1>" } } }
-```
-List usable identities with `security find-identity -v -p codesigning` (an "Apple Development"
-certificate works, as does a self-signed code-signing certificate from Keychain Access).
-
-### Linux
-Install the WebKitGTK toolchain first, e.g. on Debian/Ubuntu:
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev build-essential
 ```
-Then `npm run tauri build` produces `.deb`, `.rpm` and AppImage bundles.
 
-## Limitations (v1)
-- Chameleon includes (included schema without a targetNamespace) are not remapped
-- WSDL 2.0, MTOM/attachments and WS-Addressing are not supported
-- Without a Secret Service (some minimal Linux setups) secrets are kept in memory for the current run only
-- Unsigned builds (`tauri dev`, `tauri build`): macOS may ask again for Keychain access after each rebuild
+```sh
+npm install
+npm run tauri dev        # run the app with hot reload
+npm run check            # type-check the frontend
+cargo test               # Rust tests
+cargo test -- --ignored  # also: live call to dneonline.com, and a test against the real OS keychain
+```
 
-## Author
-Yedhu Krishnan · [yedhu.me](https://yedhu.me) · dev@yedhu.me
+### Project layout
+
+```
+crates/soap-core   SOAP logic: WSDL/XSD parsing, sample generation, envelopes and WS-Security,
+                   HTTP, variables, assertions, project and session files. No UI dependencies.
+src-tauri          Desktop shell: Tauri commands, menu, secret storage
+ui                 Svelte 5 + TypeScript frontend
+```
+
+## Building
+
+```sh
+npm run tauri build   # unsigned build: .app and .dmg (macOS) or .deb, .rpm and AppImage (Linux)
+npm run build:mac     # macOS, code-signed
+```
+
+Builds are written to `target/release/bundle/`.
+
+### Code signing on macOS
+
+A signed build keeps the same identity across rebuilds, so a Keychain *Always Allow* stays in effect.
+`npm run build:mac` reads the signing identity from `src-tauri/tauri.signing.json` (git-ignored):
+
+```json
+{ "bundle": { "macOS": { "signingIdentity": "<identity name or SHA-1>" } } }
+```
+
+List available identities with `security find-identity -v -p codesigning`. An *Apple Development*
+certificate works, as does a self-signed code-signing certificate created in Keychain Access.
+Unsigned builds may ask for Keychain access again after every rebuild.
+
+## Privacy and security
+
+- **Your passwords stay in your Keychain.** Secret values are stored only in the macOS Keychain or
+  the Linux system keyring, never in project files, and the app only uses its own entry
+  (`dev.soapclient.app`).
+- **Shared project files are safe to open.** If a project file would use secrets saved on your
+  computer, the app asks first.
+- **Imports stay where they belong.** A WSDL from the web only loads other web documents, and only
+  schemas and WSDLs are imported.
+- **Local data is private.** The interface runs under a strict Content Security Policy, and the
+  autosaved session is readable only by your user.
+
+To report a security concern, see [SECURITY.md](SECURITY.md). Bugs and ideas are welcome as
+[issues](https://github.com/yedhukrishnan/soap-client/issues).
+
+## Limitations
+
+- WSDL 2.0, MTOM/attachments and WS-Addressing are not supported.
+- Included schemas without a target namespace ("chameleon includes") are not remapped.
+- Without a system keyring (some minimal Linux setups), secrets are kept only until the app quits.
+
+## License
+
+[MIT](LICENSE) © 2026 [Yedhu Krishnan](https://yedhu.me)
