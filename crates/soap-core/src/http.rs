@@ -243,11 +243,34 @@ pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData
     })
 }
 
+/// Whether a redirect to `next` would leave https for plain http at any point in the chain.
+fn is_downgrade(previous: &[reqwest::Url], next: &reqwest::Url) -> bool {
+    next.scheme() == "http" && previous.iter().any(|u| u.scheme() == "https")
+}
+
+/// Document downloads are plain GETs without a body or custom headers, so redirects to
+/// other servers are followed (http to https, `www.`, CDNs are common for WSDLs), but
+/// never from https to http, where the document could be altered on the way.
+fn document_redirects() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if is_downgrade(attempt.previous(), attempt.url()) {
+            attempt.error("refusing to follow a redirect from https to http")
+        } else if attempt.previous().len() > MAX_REDIRECTS {
+            attempt.error("too many redirects")
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 /// Download a document (e.g. a WSDL) over HTTP(S).
 pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Result<String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .tls_danger_accept_invalid_certs(accept_invalid_certs)
+        .redirect(document_redirects())
+        // The URL may carry a token in its query; don't pass it on to the redirect target.
+        .referer(false)
         .build()?;
     let resp = client.get(url).send().await?;
     let status = resp.status();
@@ -256,4 +279,25 @@ pub async fn fetch_text(url: &str, accept_invalid_certs: bool, limit: u64) -> Re
     }
     let bytes = read_limited(resp, limit).await?;
     Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_downgrade;
+    use reqwest::Url;
+
+    fn urls(list: &[&str]) -> Vec<Url> {
+        list.iter().map(|u| Url::parse(u).unwrap()).collect()
+    }
+
+    #[test]
+    fn downgrade_is_any_https_to_http_step_in_the_chain() {
+        let http = Url::parse("http://b.example/x.wsdl").unwrap();
+        let https = Url::parse("https://b.example/x.wsdl").unwrap();
+        assert!(is_downgrade(&urls(&["https://a.example/x.wsdl"]), &http));
+        assert!(is_downgrade(&urls(&["http://a.example/", "https://a.example/"]), &http));
+        assert!(!is_downgrade(&urls(&["http://a.example/x.wsdl"]), &http));
+        assert!(!is_downgrade(&urls(&["http://a.example/x.wsdl"]), &https));
+        assert!(!is_downgrade(&urls(&["https://a.example/x.wsdl"]), &https));
+    }
 }

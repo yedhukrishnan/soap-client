@@ -83,3 +83,28 @@ async fn imports_must_be_schemas_or_wsdls() {
     std::fs::remove_dir_all(&dir).unwrap();
     assert!(err.contains("is not an XML Schema or WSDL") && !err.contains("abc"), "{err}");
 }
+
+/// A WSDL that redirects to another server is still downloaded, but the original URL
+/// (which may carry a token) is not sent along as a Referer.
+#[tokio::test]
+async fn wsdl_redirect_to_another_server_sends_no_referer() {
+    let body = std::fs::read_to_string(format!("{}/../calculator.wsdl", fixture_dir())).unwrap();
+    let cdn = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/calculator.wsdl"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(body))
+        .expect(1)
+        .mount(&cdn)
+        .await;
+    let origin = MockServer::start().await;
+    Mock::given(path("/calculator.wsdl"))
+        .respond_with(ResponseTemplate::new(302).insert_header("Location", format!("{}/calculator.wsdl", cdn.uri())))
+        .expect(1)
+        .mount(&origin)
+        .await;
+
+    let entry = import_wsdl(&format!("{}/calculator.wsdl?token=s3cret", origin.uri())).await.unwrap();
+    assert!(entry.document.is_some());
+    let received = cdn.received_requests().await.unwrap();
+    assert!(received.iter().all(|q| !q.headers.contains_key("referer")));
+}
