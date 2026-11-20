@@ -119,7 +119,50 @@ pub fn prepare(spec: &RequestSpec) -> Result<PreparedRequest> {
     Ok(PreparedRequest { url, headers, body })
 }
 
-pub async fn send(spec: &RequestSpec) -> Result<ResponseData> {
+pub const MASK: &str = "••••••";
+
+/// Copy of a prepared request that is safe to display: auth passwords, the
+/// Authorization header and any extra `secrets` (raw or XML-escaped) are masked.
+pub fn masked(prepared: &PreparedRequest, spec: &RequestSpec, secrets: &[String]) -> PreparedRequest {
+    let mut values: Vec<String> = secrets.to_vec();
+    match &spec.auth {
+        Auth::Basic { password, .. } => values.push(password.clone()),
+        Auth::WsSecurity(sec) => values.push(sec.password.clone()),
+        Auth::None => {}
+    }
+    // Longest first so a secret containing another secret is masked whole.
+    values.retain(|v| v.chars().count() >= 2);
+    values.sort_by_key(|v| std::cmp::Reverse(v.len()));
+    values.dedup();
+    let hide = |s: &str| {
+        values.iter().fold(s.to_string(), |acc, v| {
+            acc.replace(v.as_str(), MASK).replace(&crate::xml_escape(v), MASK)
+        })
+    };
+    PreparedRequest {
+        url: hide(&prepared.url),
+        headers: prepared
+            .headers
+            .iter()
+            .map(|(n, v)| {
+                let v = if n.eq_ignore_ascii_case("authorization") {
+                    match v.split_once(' ') {
+                        Some((scheme, _)) => format!("{scheme} {MASK}"),
+                        None => MASK.to_string(),
+                    }
+                } else {
+                    hide(v)
+                };
+                (n.clone(), v)
+            })
+            .collect(),
+        body: hide(&prepared.body),
+    }
+}
+
+/// Send a request. `secrets` are values (e.g. secret variables) that must be masked
+/// in the returned copy of the sent request.
+pub async fn send(spec: &RequestSpec, secrets: &[String]) -> Result<ResponseData> {
     let prepared = prepare(spec)?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(spec.timeout_secs.max(1)))
@@ -152,7 +195,7 @@ pub async fn send(spec: &RequestSpec) -> Result<ResponseData> {
         body,
         elapsed_ms,
         size_bytes: bytes.len(),
-        request: prepared,
+        request: masked(&prepared, spec, secrets),
     })
 }
 

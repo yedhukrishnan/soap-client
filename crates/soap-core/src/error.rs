@@ -12,6 +12,8 @@ pub enum Error {
     Io(String),
     #[error("Project file error: {0}")]
     Project(String),
+    #[error("Variables: {0}")]
+    Vars(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

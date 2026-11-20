@@ -7,6 +7,8 @@ pub mod envelope;
 pub mod error;
 pub mod http;
 pub mod project;
+pub mod session;
+pub mod vars;
 pub mod wsdl;
 pub mod xml_fmt;
 pub mod xsd;

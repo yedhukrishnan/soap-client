@@ -1,4 +1,5 @@
-//! Project files: imported WSDLs plus saved requests, stored as JSON.
+//! Project files: imported WSDLs, saved requests, variables and environments, stored as JSON.
+//! Secret variable values are never part of a project; they live in the OS keychain.
 
 use std::path::Path;
 
@@ -16,7 +17,17 @@ pub const FORMAT_VERSION: u32 = 1;
 pub struct Project {
     #[serde(default = "format_version")]
     pub version: u32,
+    /// Stable id; namespaces this project's secrets in the keychain.
+    #[serde(default = "new_id")]
+    pub id: String,
     pub name: String,
+    /// Project-level variables; the active environment's variables override them.
+    #[serde(default)]
+    pub variables: Vec<Variable>,
+    #[serde(default)]
+    pub environments: Vec<Environment>,
+    #[serde(default)]
+    pub active_environment: Option<String>,
     #[serde(default)]
     pub wsdls: Vec<WsdlEntry>,
     #[serde(default)]
@@ -25,6 +36,30 @@ pub struct Project {
 
 fn format_version() -> u32 {
     FORMAT_VERSION
+}
+
+fn new_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Variable {
+    pub name: String,
+    /// Plain value. Always empty for secrets (their value is in the keychain).
+    #[serde(default)]
+    pub value: String,
+    #[serde(default)]
+    pub secret: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Environment {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub variables: Vec<Variable>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,23 +105,22 @@ pub async fn import_wsdl(source: &str) -> Result<WsdlEntry> {
     })
 }
 
-pub fn save(project: &Project, path: &Path) -> Result<()> {
+/// The on-disk form: parsed documents dropped, secret values cleared (defence in depth).
+pub fn for_disk(project: &Project) -> Project {
     let mut p = project.clone();
     p.version = FORMAT_VERSION;
     for w in &mut p.wsdls {
         w.document = None;
     }
-    let json = serde_json::to_string_pretty(&p).map_err(|e| Error::Project(e.to_string()))?;
-    // Write to a sibling temp file then rename, so a crash never leaves a truncated project.
-    let tmp = path.with_extension("tmp-save");
-    std::fs::write(&tmp, json)?;
-    std::fs::rename(&tmp, path)?;
-    Ok(())
+    let vars = p.variables.iter_mut().chain(p.environments.iter_mut().flat_map(|e| e.variables.iter_mut()));
+    for v in vars.filter(|v| v.secret) {
+        v.value.clear();
+    }
+    p
 }
 
-pub fn load(path: &Path) -> Result<Project> {
-    let json = std::fs::read_to_string(path)?;
-    let mut p: Project = serde_json::from_str(&json).map_err(|e| Error::Project(e.to_string()))?;
+/// Re-parse the stored WSDLs after loading.
+pub fn hydrate(p: &mut Project) -> Result<()> {
     if p.version > FORMAT_VERSION {
         return Err(Error::Project(format!(
             "project format v{} is newer than this app supports (v{FORMAT_VERSION})",
@@ -96,5 +130,28 @@ pub fn load(path: &Path) -> Result<Project> {
     for w in &mut p.wsdls {
         w.document = Some(parse_wsdl_with_imports(&w.text, &w.imports)?);
     }
+    Ok(())
+}
+
+/// Write to a sibling temp file then rename, so a crash never leaves a truncated file.
+pub(crate) fn write_atomic(path: &Path, contents: &str) -> Result<()> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension("tmp-save");
+    std::fs::write(&tmp, contents)?;
+    std::fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+pub fn save(project: &Project, path: &Path) -> Result<()> {
+    let json = serde_json::to_string_pretty(&for_disk(project)).map_err(|e| Error::Project(e.to_string()))?;
+    write_atomic(path, &json)
+}
+
+pub fn load(path: &Path) -> Result<Project> {
+    let json = std::fs::read_to_string(path)?;
+    let mut p: Project = serde_json::from_str(&json).map_err(|e| Error::Project(e.to_string()))?;
+    hydrate(&mut p)?;
     Ok(p)
 }
