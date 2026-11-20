@@ -52,7 +52,7 @@
       <input use:autofocus bind:value={source} placeholder="URL or file path" spellcheck="false" disabled={busy} />
       <button type="button" class="secondary" onclick={browse} disabled={busy}>Browse…</button>
     </div>
-    <p class="sub small">WSDL 1.1. Imported WSDLs and XSDs (schemaLocation) are loaded too, relative to the WSDL.</p>
+    <p class="sub small">Supports WSDL 1.1. Schemas and WSDLs it imports are loaded too.</p>
     {#if error}<div class="error">{error}</div>{/if}
     <div class="actions">
       <button type="button" class="secondary" onclick={() => (app.importOpen = false)} disabled={busy}>Cancel</button>

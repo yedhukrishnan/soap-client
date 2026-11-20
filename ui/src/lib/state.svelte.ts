@@ -4,6 +4,7 @@
 import { ask, message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
 import { disposeModel } from "./monaco";
+import { plural } from "./platform";
 import type {
   AssertionResult, Environment, Interface, Operation, Project, ResponseData, SavedRequest, SecretBackend,
   VarBinding, Variable, WsdlEntry,
@@ -19,6 +20,8 @@ export interface RunState {
 
 const RECENT_KEY = "soap-client.recent";
 const COLLAPSED_KEY = "soap-client.collapsed";
+/** projectId -> project file paths this machine has saved or knowingly opened. */
+const TRUSTED_KEY = "soap-client.trusted-projects";
 const PROJECT_FILTER = [{ name: "SOAP Client project", extensions: ["json"] }];
 
 export const uid = () => crypto.randomUUID();
@@ -63,7 +66,7 @@ const KEYCHAIN_ACK = "soap-client.keychain-ack";
 
 export class KeychainDeclined extends Error {
   constructor() {
-    super("Keychain access was not allowed, so secret variables can't be used for this action.");
+    super("Access to secret storage was not allowed, so secret variables can't be used.");
   }
 }
 
@@ -275,7 +278,7 @@ class AppState {
   async deleteRequest(id: string) {
     const req = this.request(id);
     if (!req) return;
-    if (!(await ask(`Delete "${req.operationName} · ${req.name}"?`, { title: "Delete request", kind: "warning" })))
+    if (!(await ask(`Delete "${req.operationName} · ${req.name}"? This can't be undone.`, { title: "Delete request", kind: "warning" })))
       return;
     this.closeTab(id);
     this.project.requests = this.project.requests.filter((r) => r.id !== id);
@@ -299,8 +302,8 @@ class AppState {
     const w = this.project.wsdls.find((x) => x.id === id);
     if (!w) return;
     const reqs = this.project.requests.filter((r) => r.wsdlId === id);
-    const extra = reqs.length ? ` and its ${reqs.length} saved request(s)` : "";
-    if (!(await ask(`Remove ${basename(w.source)}${extra} from the project?`, { title: "Remove WSDL", kind: "warning" })))
+    const extra = reqs.length ? ` and its ${plural(reqs.length, "saved request")}` : "";
+    if (!(await ask(`Remove ${basename(w.source)}${extra} from the project? This can't be undone.`, { title: "Remove WSDL", kind: "warning" })))
       return;
     for (const r of reqs) {
       this.closeTab(r.id);
@@ -377,7 +380,19 @@ class AppState {
     const chosen = path ?? (await openDialog({ filters: PROJECT_FILTER, multiple: false, directory: false }));
     if (!chosen) return;
     try {
-      const project = await api.openProject(chosen);
+      let project = await api.openProject(chosen);
+      // Secrets are keyed by project id. A file that isn't known to be yours but reuses
+      // the id of a project with stored secrets could send them to its own endpoints.
+      if (!this.isTrusted(project.id, chosen) && (await api.secretProjectHas(project.id))) {
+        const mine = await ask(
+          `"${basename(chosen)}" has the same project ID as a project whose secrets are saved on this computer.\n\n` +
+            "If it's your own file (for example, moved or copied), use your saved secrets. " +
+            "If it came from someone else, open it without them: a shared file could send your passwords to its own servers.",
+          { title: "Use saved secrets?", kind: "warning", okLabel: "It's my project", cancelLabel: "Open without secrets" },
+        );
+        if (!mine) project = { ...project, id: uid() };
+      }
+      this.trust(project.id, chosen);
       this.reset(project, chosen);
       this.clearPlaceholderEndpoints();
       this.remember(chosen);
@@ -399,6 +414,7 @@ class AppState {
     }
     try {
       await api.saveProject(path, $state.snapshot(this.project));
+      this.trust(this.project.id, path);
       this.path = path;
       this.dirty = false;
       this.remember(path);
@@ -407,6 +423,24 @@ class AppState {
       await message(String(e), { title: "Could not save project", kind: "error" });
       return false;
     }
+  }
+
+  private trustedMap(): Record<string, string[]> {
+    try {
+      return JSON.parse(localStorage.getItem(TRUSTED_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  private isTrusted(id: string, path: string) {
+    return this.trustedMap()[id]?.includes(path) ?? false;
+  }
+
+  private trust(id: string, path: string) {
+    const map = this.trustedMap();
+    map[id] = [...new Set([...(map[id] ?? []), path])];
+    localStorage.setItem(TRUSTED_KEY, JSON.stringify(map));
   }
 
   private remember(path: string) {
@@ -583,7 +617,7 @@ class AppState {
   async removeEnvironment(id: string) {
     const env = this.project.environments.find((e) => e.id === id);
     if (!env) return;
-    if (!(await ask(`Delete environment "${env.name}" and its ${env.variables.length} variable(s)?`, { title: "Delete environment", kind: "warning" })))
+    if (!(await ask(`Delete environment "${env.name}" and its ${plural(env.variables.length, "variable")}? This can't be undone.`, { title: "Delete environment", kind: "warning" })))
       return false;
     const keys = env.variables.filter((v) => v.secret).map((v) => this.secretKey(id, v.name));
     if (keys.length) {

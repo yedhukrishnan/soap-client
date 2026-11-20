@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from "../lib/api";
   import { findLiteralSecrets, replaceLiteralSecret } from "../lib/secrets";
+  import { shortcut } from "../lib/platform";
   import { app, isHttpUrl } from "../lib/state.svelte";
   import type { SavedRequest } from "../lib/types";
   import AssertionsEditor from "./AssertionsEditor.svelte";
@@ -19,7 +20,7 @@
   const wsdlPlaceholder = $derived(source?.iface.endpoints.find((e) => !isHttpUrl(e)));
   const endpointHint = $derived(
     wsdlPlaceholder
-      ? `${wsdlPlaceholder}: e.g. https://supplier.com/service or {{productDataUrl}}`
+      ? `${wsdlPlaceholder}: e.g. https://supplier.example.com/service or {{productDataUrl}}`
       : "https://host/service or {{serviceUrl}}",
   );
   const headerCount = $derived(req.spec.headers.filter((h) => h.enabled && h.name).length);
@@ -93,7 +94,7 @@
     {#if run?.sending}
       <button class="send cancel" onclick={() => app.cancel(req.id)}>Cancel</button>
     {:else}
-      <button class="send" onclick={() => app.send(req.id)} title="Send (⌘↵)">Send ▶</button>
+      <button class="send" onclick={() => app.send(req.id)} title="Send ({shortcut('Enter')})">Send ▶</button>
     {/if}
   </div>
 

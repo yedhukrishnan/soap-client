@@ -22,6 +22,9 @@
   let applying = false;
   let decorations: monaco.editor.IEditorDecorationsCollection | undefined;
 
+  /** Escape Markdown so untrusted text renders literally in Monaco hovers. */
+  const md = (s: string) => s.replace(/[\\`*_{}[\]()#+\-.!|<>~]/g, "\\$&");
+
   const PLACEHOLDER = /\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g;
 
   function decorate() {
@@ -35,11 +38,12 @@
       const start = model.getPositionAt(m.index!);
       const end = model.getPositionAt(m.index! + m[0].length);
       const v = vars.get(m[1]);
+      // Values come from project files (possibly someone else's): escape Markdown.
       const hover = !v
-        ? `Undefined variable \`${m[1]}\` — define it in Variables & Environments`
+        ? `Undefined variable ${md(m[1])}: define it in Variables & Environments`
         : v.secret
-          ? `\`${v.name}\` · secret (from ${v.scope === "project" ? "Project" : "environment"})`
-          : `\`${v.name}\` = \`${v.value}\``;
+          ? `${md(v.name)}: secret (${v.scope === "project" ? "project" : "environment"} variable)`
+          : `${md(v.name)} = ${md(v.value)}`;
       list.push({
         range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
         options: { inlineClassName: v ? "var-ok" : "var-missing", hoverMessage: { value: hover } },

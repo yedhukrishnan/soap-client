@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { secretStore } from "../lib/platform";
   import { app, VAR_NAME, type Scope } from "../lib/state.svelte";
   import type { Variable } from "../lib/types";
 
@@ -109,7 +110,7 @@
     class="dialog"
     role="dialog"
     aria-modal="true"
-    aria-label="Variables and environments"
+    aria-label="Variables & Environments"
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.key === "Escape" && !renamingEnv && close()}
@@ -123,7 +124,7 @@
       <nav>
         <button class="scope" class:on={scope === "project"} onclick={() => selectScope("project")}>
           Project
-          <span class="sub">defaults for all environments</span>
+          <span class="sub">default for all environments</span>
         </button>
         <div class="navhead">
           Environments
@@ -186,7 +187,7 @@
 
         <table>
           <thead>
-            <tr><th>Name</th><th>Value</th><th title="Secret values are stored in the OS keychain">Secret</th><th></th></tr>
+            <tr><th>Name</th><th>Value</th><th title={`Secret values are stored in your ${secretStore}`}>Secret</th><th></th></tr>
           </thead>
           <tbody>
             {#each vars as v (v)}
@@ -224,7 +225,9 @@
                     class="lock"
                     class:on={v.secret}
                     disabled={!v.name}
-                    title={v.secret ? "Secret (stored in keychain) — click to make plain" : "Plain (saved in project) — click to make secret"}
+                    title={v.secret
+                      ? `Secret, stored in your ${secretStore}. Click to make it plain.`
+                      : "Plain, saved in the project. Click to make it secret."}
                     onclick={() => run(() => app.setSecret(scope, v, !v.secret))}>{v.secret ? "🔒" : "🔓"}</button
                   >
                 </td>
@@ -254,7 +257,7 @@
         <span class:warn={!app.secretBackend.persistent}>
           {app.secretBackend.persistent
             ? `Secrets: ${app.secretBackend.name}`
-            : "No keychain available — secrets last until the app quits"}
+            : "No keychain available: secrets are kept only until you quit"}
           {#if app.secretBackend.persistent}
             · <button class="link" onclick={() => app.showKeychainInfo()}>About secret storage</button>
           {/if}

@@ -57,7 +57,7 @@
 
   <h4>Connection</h4>
   <label class="row">
-    <span>Timeout (s)</span>
+    <span>Timeout (seconds)</span>
     <input type="number" min="1" bind:value={req.spec.timeoutSecs} oninput={dirty} style="max-width: 100px" />
   </label>
   <label class="check">

@@ -11,6 +11,7 @@
   import SecretPromptDialog from "./components/SecretPromptDialog.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import VariablesDialog from "./components/VariablesDialog.svelte";
+  import { shortcut } from "./lib/platform";
   import { app } from "./lib/state.svelte";
 
   let sidebarWidth = $state(Number(localStorage.getItem("soap-client.sidebar")) || 260);
@@ -119,7 +120,10 @@
             <button class="secondary" onclick={() => app.openProject()}>Open Project…</button>
           </div>
         {/if}
-        <p class="keys"><kbd>⌘↵</kbd> send · <kbd>⌘D</kbd> duplicate · <kbd>⌘S</kbd> save · <kbd>⌘O</kbd> open</p>
+        <p class="keys">
+          <kbd>{shortcut("Enter")}</kbd> send · <kbd>{shortcut("D")}</kbd> duplicate · <kbd>{shortcut("S")}</kbd> save ·
+          <kbd>{shortcut("O")}</kbd> open
+        </p>
       </div>
     {/if}
   </main>

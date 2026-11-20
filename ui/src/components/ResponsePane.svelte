@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { shortcut } from "../lib/platform";
   import { app } from "../lib/state.svelte";
   import type { SavedRequest } from "../lib/types";
   import XmlEditor from "./XmlEditor.svelte";
@@ -41,7 +42,7 @@
         </button>
       {/if}
     {:else}
-      <span class="meta">No response yet — press <b>Send</b> or ⌘↵</span>
+      <span class="meta">No response yet. Press <b>Send</b> or {shortcut("Enter")}.</span>
     {/if}
   </div>
 

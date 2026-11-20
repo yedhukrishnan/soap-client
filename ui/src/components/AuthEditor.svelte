@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { secretStore } from "../lib/platform";
   import { isLiteral } from "../lib/secrets";
   import { app } from "../lib/state.svelte";
   import type { Auth, SavedRequest } from "../lib/types";
@@ -74,7 +75,7 @@
         </select>
       </label>
       <label>
-        <span>Timestamp TTL (s)</span>
+        <span>Timestamp TTL (seconds)</span>
         <input type="number" min="0" bind:value={auth.timestampTtlSecs} oninput={() => app.markDirty()} />
         <small>0 = no wsu:Timestamp</small>
       </label>
@@ -85,8 +86,7 @@
     {/if}
   {/if}
   <p class="hint">
-    Username and password accept <code>{"{{variables}}"}</code>. Secret variables are stored in the OS keychain,
-    never in the project file.
+    Username and password accept <code>{"{{variables}}"}</code>. Secret variables are stored in your {secretStore}, never in the project file.
   </p>
 </div>
 

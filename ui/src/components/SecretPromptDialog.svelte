@@ -60,7 +60,7 @@
       <label>
         <span>Store in</span>
         <select bind:value={scope}>
-          <option value="project">Project (all environments)</option>
+          <option value="project">Project (default for all environments)</option>
           {#each app.project.environments as env (env.id)}
             <option value={env.id}>Environment: {env.name}</option>
           {/each}

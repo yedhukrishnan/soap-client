@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { plural, shortcut } from "../lib/platform";
   import { app, basename } from "../lib/state.svelte";
   import type { Interface, Operation, WsdlEntry } from "../lib/types";
 
@@ -77,9 +78,9 @@
     {#if menuOpen}
       <div class="menu" role="menu" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={() => {}}>
         <button onclick={() => menu(() => app.newProject())}>New Project</button>
-        <button onclick={() => menu(() => app.openProject())}>Open…<kbd>⌘O</kbd></button>
-        <button onclick={() => menu(() => app.save())}>Save<kbd>⌘S</kbd></button>
-        <button onclick={() => menu(() => app.save(true))}>Save As…<kbd>⇧⌘S</kbd></button>
+        <button onclick={() => menu(() => app.openProject())}>Open…<kbd>{shortcut("O")}</kbd></button>
+        <button onclick={() => menu(() => app.save())}>Save<kbd>{shortcut("S")}</kbd></button>
+        <button onclick={() => menu(() => app.save(true))}>Save As…<kbd>{shortcut("S", true)}</kbd></button>
         <button onclick={() => menu(() => (renamingProject = true))}>Rename Project</button>
         {#if app.recent.length}
           <div class="sep">Recent</div>
@@ -102,7 +103,7 @@
         <option value={env.id}>{env.name}</option>
       {/each}
     </select>
-    <button class="vars" title="Variables & environments" onclick={() => (app.varsOpen = true)}>{"{{x}}"}</button>
+    <button class="vars" title="Variables & Environments" onclick={() => (app.varsOpen = true)}>{"{{x}}"}</button>
   </div>
 
   <div class="filter">
@@ -111,7 +112,7 @@
 
   <div class="tree">
     {#each app.project.wsdls as w (w.id)}
-      <div class="row group" title={`${w.source}${w.imports?.length ? `\n+ ${w.imports.length} imported document(s)` : ""}`}>
+      <div class="row group" title={`${w.source}${w.imports?.length ? `\n+ ${plural(w.imports.length, "imported document")}` : ""}`}>
         <span class="label caption">{basename(w.source.replace(/\?wsdl$/i, ""))}</span>
         <span class="actions">
           <button class="act danger" title="Remove WSDL" onclick={() => app.removeWsdl(w.id)}>×</button>
@@ -223,7 +224,7 @@
                   <span class="actions">
                     <button
                       class="act"
-                      title="Duplicate request (⌘D)"
+                      title="Duplicate request ({shortcut('D')})"
                       onclick={(e) => {
                         e.stopPropagation();
                         app.duplicating = r.id;

@@ -23,4 +23,5 @@ export const api = {
   secretDelete: (keys: string[]) => invoke<void>("secret_delete", { keys }),
   secretRename: (from: string, to: string) => invoke<void>("secret_rename", { from, to }),
   secretStatus: (keys: string[]) => invoke<boolean[]>("secret_status", { keys }),
+  secretProjectHas: (projectId: string) => invoke<boolean>("secret_project_has", { projectId }),
 };
