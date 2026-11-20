@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { isLiteral } from "../lib/secrets";
   import { app } from "../lib/state.svelte";
   import type { Auth, SavedRequest } from "../lib/types";
 
@@ -15,6 +16,19 @@
           ? { kind, username, password }
           : { kind, username, password, passwordType: "PasswordText", timestampTtlSecs: 0 };
     app.markDirty();
+  }
+
+  function moveToSecret() {
+    const auth = req.spec.auth;
+    if (auth.kind === "none") return;
+    app.secretPrompt = {
+      suggestedName: "password",
+      value: auth.password,
+      apply: (placeholder) => {
+        auth.password = placeholder;
+        app.markDirty();
+      },
+    };
   }
 </script>
 
@@ -36,8 +50,21 @@
     </label>
     <label>
       <span>Password</span>
-      <input type="password" bind:value={auth.password} oninput={() => app.markDirty()} autocomplete="off" />
+      <input
+        type={isLiteral(auth.password) ? "password" : "text"}
+        bind:value={auth.password}
+        oninput={() => app.markDirty()}
+        autocomplete="off"
+        spellcheck="false"
+        placeholder={"{{password}}"}
+      />
     </label>
+    {#if isLiteral(auth.password)}
+      <div class="literal">
+        <span>🔒 This password would be saved in the project.</span>
+        <button class="primary small" onclick={moveToSecret}>Move to secret variable</button>
+      </div>
+    {/if}
     {#if auth.kind === "wsSecurity"}
       <label>
         <span>Password type</span>
@@ -57,7 +84,10 @@
       </p>
     {/if}
   {/if}
-  <p class="hint warn">Credentials are saved in plain text in the project file.</p>
+  <p class="hint">
+    Username and password accept <code>{"{{variables}}"}</code>. Secret variables are stored in the OS keychain,
+    never in the project file.
+  </p>
 </div>
 
 <style>
@@ -86,7 +116,20 @@
     margin: 4px 0 0;
     line-height: 1.5;
   }
-  .warn {
+  .literal {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-left: 150px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--warn) 13%, transparent);
     font-size: 12px;
+  }
+  .primary.small {
+    padding: 3px 10px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 </style>

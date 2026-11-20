@@ -1,10 +1,12 @@
-// Application state (Svelte 5 runes). The project is owned by the frontend;
-// the Rust backend is stateless apart from in-flight request cancellation.
+// Application state (Svelte 5 runes). The project is owned by the frontend and
+// autosaved as a session; secret variable values only ever live in the Rust backend
+// (OS keychain) — the frontend can set, delete and check them, never read them.
 import { ask, message, open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { api } from "./api";
 import { disposeModel } from "./monaco";
 import type {
-  AssertionResult, Interface, Operation, Project, ResponseData, SavedRequest, WsdlEntry,
+  AssertionResult, Environment, Interface, Operation, Project, ResponseData, SavedRequest, SecretBackend,
+  VarBinding, Variable, WsdlEntry,
 } from "./types";
 
 export interface RunState {
@@ -18,9 +20,41 @@ export interface RunState {
 const RECENT_KEY = "soap-client.recent";
 const PROJECT_FILTER = [{ name: "SOAP Client project", extensions: ["json"] }];
 
-const emptyProject = (): Project => ({ version: 1, name: "Untitled", wsdls: [], requests: [] });
-
 export const uid = () => crypto.randomUUID();
+
+const emptyProject = (): Project => ({
+  version: 1,
+  id: uid(),
+  name: "Untitled",
+  variables: [],
+  environments: [],
+  activeEnvironment: null,
+  wsdls: [],
+  requests: [],
+});
+
+/** "project" for project-level variables, otherwise an environment id. */
+export type Scope = "project" | string;
+
+export const VAR_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
+
+export interface EffectiveVar {
+  name: string;
+  secret: boolean;
+  value: string;
+  scope: Scope;
+  key: string;
+}
+
+/** A pending "move this literal into a secret variable" action. */
+export interface SecretPrompt {
+  suggestedName: string;
+  value: string;
+  /** Called with the placeholder (e.g. "{{password}}") once the secret is stored. */
+  apply: (placeholder: string) => void;
+}
+
+const AUTOSAVE_MS = 700;
 
 export function basename(p: string) {
   return p.split(/[\\/]/).pop() || p;
@@ -37,11 +71,38 @@ class AppState {
   importOpen = $state(false);
   /** Id of the request whose "Duplicate" name dialog is open. */
   duplicating = $state<string | null>(null);
+  varsOpen = $state(false);
+  secretPrompt = $state<SecretPrompt | null>(null);
+  secretBackend = $state<SecretBackend | null>(null);
+  /** keychain key -> has a stored value */
+  secretStatus = $state<Record<string, boolean>>({});
+  /** Bumped on every edit; drives autosave. */
+  revision = $state(0);
+  restored = $state(false);
+  private saveTimer: ReturnType<typeof setTimeout> | undefined;
 
   active = $derived(this.project.requests.find((r) => r.id === this.activeId) ?? null);
+  activeEnvironment = $derived(
+    this.project.environments.find((e) => e.id === this.project.activeEnvironment) ?? null,
+  );
+
+  /** Project variables overridden by the active environment's. */
+  effectiveVars = $derived.by(() => {
+    const out = new Map<string, EffectiveVar>();
+    const add = (vars: Variable[], scope: Scope) => {
+      for (const v of vars) {
+        if (!VAR_NAME.test(v.name)) continue;
+        out.set(v.name, { name: v.name, secret: v.secret, value: v.value, scope, key: this.secretKey(scope, v.name) });
+      }
+    };
+    add(this.project.variables, "project");
+    if (this.activeEnvironment) add(this.activeEnvironment.variables, this.activeEnvironment.id);
+    return out;
+  });
 
   markDirty() {
     this.dirty = true;
+    this.revision++;
   }
 
   request(id: string) {
@@ -182,7 +243,7 @@ class AppState {
     const callId = uid();
     this.runs[id] = { ...this.runs[id], sending: true, callId, error: undefined };
     try {
-      const response = await api.sendRequest(callId, $state.snapshot(req.spec));
+      const response = await api.sendRequest(callId, $state.snapshot(req.spec), this.bindings());
       const enabled = req.assertions.filter((a) => a.enabled);
       const results = enabled.length ? await api.runAssertions($state.snapshot(enabled), response) : [];
       this.runs[id] = { sending: false, response, results };
@@ -219,6 +280,9 @@ class AppState {
     this.openTabs = [];
     this.activeId = null;
     this.runs = {};
+    this.secretStatus = {};
+    this.revision++;
+    this.refreshSecretStatus();
   }
 
   async newProject() {
@@ -269,6 +333,166 @@ class AppState {
   private forget(path: string) {
     this.recent = this.recent.filter((p) => p !== path);
     localStorage.setItem(RECENT_KEY, JSON.stringify(this.recent));
+  }
+
+  // ---- variables, environments & secrets ----
+
+  secretKey(scope: Scope, name: string) {
+    return `${this.project.id}:${scope}:${name}`;
+  }
+
+  varsOf(scope: Scope): Variable[] {
+    if (scope === "project") return this.project.variables;
+    return this.project.environments.find((e) => e.id === scope)?.variables ?? [];
+  }
+
+  scopeName(scope: Scope) {
+    return scope === "project" ? "Project" : (this.project.environments.find((e) => e.id === scope)?.name ?? "?");
+  }
+
+  /** What the backend needs to resolve {{vars}} for a send. */
+  bindings(): VarBinding[] {
+    return [...this.effectiveVars.values()].map((v) =>
+      v.secret ? { name: v.name, secretKey: v.key } : { name: v.name, value: v.value },
+    );
+  }
+
+  async refreshSecretStatus() {
+    const keys: string[] = [];
+    for (const scope of ["project", ...this.project.environments.map((e) => e.id)])
+      for (const v of this.varsOf(scope)) if (v.secret) keys.push(this.secretKey(scope, v.name));
+    if (!keys.length) return;
+    try {
+      const status = await api.secretStatus(keys);
+      keys.forEach((k, i) => (this.secretStatus[k] = status[i]));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async setSecretValue(scope: Scope, name: string, value: string) {
+    const key = this.secretKey(scope, name);
+    await api.secretSet(key, value);
+    this.secretStatus[key] = true;
+  }
+
+  /** Toggle a variable between plain and secret, moving its value accordingly. */
+  async setSecret(scope: Scope, v: Variable, secret: boolean) {
+    if (v.secret === secret) return;
+    const key = this.secretKey(scope, v.name);
+    if (secret) {
+      if (v.value) await this.setSecretValue(scope, v.name, v.value);
+      v.value = "";
+    } else {
+      await api.secretDelete([key]);
+      delete this.secretStatus[key];
+    }
+    v.secret = secret;
+    this.markDirty();
+  }
+
+  async renameVariable(scope: Scope, v: Variable, name: string) {
+    if (name === v.name) return;
+    if (v.secret) {
+      const from = this.secretKey(scope, v.name);
+      const to = this.secretKey(scope, name);
+      await api.secretRename(from, to);
+      this.secretStatus[to] = this.secretStatus[from] ?? false;
+      delete this.secretStatus[from];
+    }
+    v.name = name;
+    this.markDirty();
+  }
+
+  async removeVariable(scope: Scope, v: Variable) {
+    if (v.secret) await api.secretDelete([this.secretKey(scope, v.name)]);
+    const list = this.varsOf(scope);
+    list.splice(list.indexOf(v), 1);
+    this.markDirty();
+  }
+
+  addEnvironment(name: string) {
+    const env: Environment = { id: uid(), name, variables: [] };
+    this.project.environments.push(env);
+    this.markDirty();
+    return env;
+  }
+
+  async removeEnvironment(id: string) {
+    const env = this.project.environments.find((e) => e.id === id);
+    if (!env) return;
+    if (!(await ask(`Delete environment "${env.name}" and its ${env.variables.length} variable(s)?`, { title: "Delete environment", kind: "warning" })))
+      return false;
+    const keys = env.variables.filter((v) => v.secret).map((v) => this.secretKey(id, v.name));
+    if (keys.length) await api.secretDelete(keys);
+    this.project.environments = this.project.environments.filter((e) => e.id !== id);
+    if (this.project.activeEnvironment === id) this.project.activeEnvironment = null;
+    this.markDirty();
+    return true;
+  }
+
+  setActiveEnvironment(id: string | null) {
+    this.project.activeEnvironment = id;
+    this.markDirty();
+  }
+
+  /** Store `value` as secret variable `name` in `scope` (creating or updating it). */
+  async storeSecretVariable(scope: Scope, name: string, value: string) {
+    const list = this.varsOf(scope);
+    let v = list.find((x) => x.name === name);
+    if (!v) {
+      list.push({ name, value: "", secret: true });
+      v = list[list.length - 1];
+    } else if (!v.secret) {
+      v.secret = true;
+      v.value = "";
+    }
+    await this.setSecretValue(scope, name, value);
+    this.markDirty();
+  }
+
+  // ---- session autosave ----
+
+  async restoreSession() {
+    try {
+      this.secretBackend = await api.secretBackend();
+      const s = await api.sessionLoad();
+      if (s) {
+        this.project = s.project;
+        this.path = s.path;
+        this.dirty = s.dirty;
+        const ids = new Set(s.project.requests.map((r) => r.id));
+        this.openTabs = s.openTabs.filter((id) => ids.has(id));
+        this.activeId = s.activeId && ids.has(s.activeId) ? s.activeId : (this.openTabs[0] ?? null);
+        this.refreshSecretStatus();
+      }
+    } catch (e) {
+      await message(String(e), { title: "Session not restored", kind: "warning" });
+    } finally {
+      this.restored = true;
+    }
+  }
+
+  scheduleSave() {
+    if (!this.restored) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => this.saveSessionNow(), AUTOSAVE_MS);
+  }
+
+  async saveSessionNow() {
+    if (!this.restored) return;
+    clearTimeout(this.saveTimer);
+    try {
+      await api.sessionSave({
+        project: $state.snapshot(this.project),
+        path: this.path,
+        dirty: this.dirty,
+        openTabs: $state.snapshot(this.openTabs),
+        activeId: this.activeId,
+      });
+    } catch (e) {
+      console.error("autosave failed", e);
+    }
   }
 }
 

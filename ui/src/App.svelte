@@ -1,13 +1,14 @@
 <script lang="ts">
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import { ask } from "@tauri-apps/plugin-dialog";
   import { onMount } from "svelte";
   import DuplicateDialog from "./components/DuplicateDialog.svelte";
   import ImportWsdlDialog from "./components/ImportWsdlDialog.svelte";
   import RequestPane from "./components/RequestPane.svelte";
   import RequestTabBar from "./components/RequestTabBar.svelte";
   import ResponsePane from "./components/ResponsePane.svelte";
+  import SecretPromptDialog from "./components/SecretPromptDialog.svelte";
   import Sidebar from "./components/Sidebar.svelte";
+  import VariablesDialog from "./components/VariablesDialog.svelte";
   import { app } from "./lib/state.svelte";
 
   let sidebarWidth = $state(Number(localStorage.getItem("soap-client.sidebar")) || 260);
@@ -20,17 +21,19 @@
     win.setTitle(`${app.project.name}${app.dirty ? " •" : ""} — SOAP Client`);
   });
 
+  // Autosave the session whenever the project, tabs or selection change.
+  $effect(() => {
+    void [app.revision, app.dirty, app.activeId, app.openTabs.length, app.path];
+    app.scheduleSave();
+  });
+
   onMount(() => {
+    app.restoreSession();
+    // Nothing is lost on close: flush the session, then close.
     const unlisten = win.onCloseRequested(async (e) => {
-      if (!app.dirty) return;
       e.preventDefault();
-      const choice = await ask("Save changes to this project before closing?", {
-        title: "Unsaved changes",
-        kind: "warning",
-        okLabel: "Save",
-        cancelLabel: "Don't Save",
-      });
-      if (!choice || (await app.save())) await win.destroy();
+      await app.saveSessionNow();
+      await win.destroy();
     });
     return () => unlisten.then((f) => f());
   });
@@ -100,6 +103,8 @@
         <div class="hsplit" role="separator" aria-orientation="horizontal" onpointerdown={dragSplit}></div>
         <ResponsePane {req} />
       </div>
+    {:else if !app.restored}
+      <div class="welcome"><span class="spinner"></span></div>
     {:else}
       <div class="welcome">
         <h2>SOAP Client</h2>
@@ -120,6 +125,14 @@
 
 {#if app.importOpen}
   <ImportWsdlDialog />
+{/if}
+
+{#if app.varsOpen}
+  <VariablesDialog />
+{/if}
+
+{#if app.secretPrompt}
+  <SecretPromptDialog prompt={app.secretPrompt} />
 {/if}
 
 {#if app.duplicating}

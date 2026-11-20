@@ -89,6 +89,20 @@
     {/if}
   </div>
 
+  <div class="envrow">
+    <select
+      value={app.project.activeEnvironment ?? ""}
+      onchange={(e) => app.setActiveEnvironment(e.currentTarget.value || null)}
+      title="Active environment"
+    >
+      <option value="">No environment</option>
+      {#each app.project.environments as env (env.id)}
+        <option value={env.id}>{env.name}</option>
+      {/each}
+    </select>
+    <button class="vars" title="Variables & environments" onclick={() => (app.varsOpen = true)}>{"{{x}}"}</button>
+  </div>
+
   <div class="filter">
     <input placeholder="Filter operations" bind:value={filter} />
   </div>
@@ -243,6 +257,26 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     display: block;
+  }
+  .envrow {
+    display: flex;
+    gap: 6px;
+    padding: 8px 8px 0;
+  }
+  .envrow select {
+    flex: 1;
+    min-width: 0;
+  }
+  .vars {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 0 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+    color: var(--accent);
+  }
+  .vars:hover {
+    background: var(--hover);
   }
   .filter {
     padding: 8px;

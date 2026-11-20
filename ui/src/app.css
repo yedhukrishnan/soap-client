@@ -147,3 +147,15 @@ kbd {
     transform: rotate(360deg);
   }
 }
+
+/* {{variable}} highlighting inside Monaco */
+.monaco-editor .var-ok {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 3px;
+}
+
+.monaco-editor .var-missing {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  text-decoration: underline wavy var(--danger);
+  border-radius: 3px;
+}

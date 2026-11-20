@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../lib/api";
+  import { findLiteralSecrets, replaceLiteralSecret } from "../lib/secrets";
   import { app } from "../lib/state.svelte";
   import type { SavedRequest } from "../lib/types";
   import AssertionsEditor from "./AssertionsEditor.svelte";
@@ -15,6 +16,20 @@
   const source = $derived(app.operationOf(req));
   const endpoints = $derived(source?.iface.endpoints ?? []);
   const headerCount = $derived(req.spec.headers.filter((h) => h.enabled && h.name).length);
+  const literalSecrets = $derived(findLiteralSecrets(req.spec.body));
+
+  function moveToSecret() {
+    const s = literalSecrets[0];
+    if (!s) return;
+    app.secretPrompt = {
+      suggestedName: s.local.toLowerCase() === "password" ? "password" : s.local,
+      value: s.decoded,
+      apply: (placeholder) => {
+        req.spec.body = replaceLiteralSecret(req.spec.body, s, placeholder);
+        app.markDirty();
+      },
+    };
+  }
 
   function flash(msg: string) {
     note = msg;
@@ -84,6 +99,13 @@
     {/if}
   </div>
 
+  {#if tab === "body" && literalSecrets.length}
+    <div class="banner">
+      <span>🔒 <code>&lt;{literalSecrets[0].tag}&gt;</code> contains a literal value that would be saved in the project.</span>
+      <button class="primary small" onclick={moveToSecret}>Move to secret variable</button>
+    </div>
+  {/if}
+
   <div class="content">
     <div class="fill" class:hidden={tab !== "body"}>
       <XmlEditor
@@ -94,6 +116,7 @@
           app.markDirty();
         }}
         onSend={() => app.send(req.id)}
+        vars={app.effectiveVars}
       />
     </div>
     {#if tab === "auth"}
@@ -199,5 +222,20 @@
   }
   .hidden {
     display: none;
+  }
+  .banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    padding: 6px 10px 6px 12px;
+    background: color-mix(in srgb, var(--warn) 13%, transparent);
+    border-bottom: 1px solid var(--border);
+    font-size: 12.5px;
+  }
+  .primary.small {
+    padding: 3px 10px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 </style>

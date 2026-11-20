@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import { currentTheme, modelFor, monaco } from "../lib/monaco";
+  import type { EffectiveVar } from "../lib/state.svelte";
 
   interface Props {
     value: string;
@@ -10,13 +11,42 @@
     wordWrap?: boolean;
     onChange?: (v: string) => void;
     onSend?: () => void;
+    /** When given, {{placeholders}} are highlighted (unknown ones underlined). */
+    vars?: Map<string, EffectiveVar>;
   }
-  let { value, modelKey, readOnly = false, wordWrap = false, onChange, onSend }: Props = $props();
+  let { value, modelKey, readOnly = false, wordWrap = false, onChange, onSend, vars }: Props = $props();
 
   let el: HTMLDivElement;
   let editor: monaco.editor.IStandaloneCodeEditor | undefined;
   let ownModel: monaco.editor.ITextModel | undefined;
   let applying = false;
+  let decorations: monaco.editor.IEditorDecorationsCollection | undefined;
+
+  const PLACEHOLDER = /\{\{\s*([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}/g;
+
+  function decorate() {
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    decorations ??= editor.createDecorationsCollection();
+    if (!vars) return decorations.clear();
+    const text = model.getValue();
+    const list: monaco.editor.IModelDeltaDecoration[] = [];
+    for (const m of text.matchAll(PLACEHOLDER)) {
+      const start = model.getPositionAt(m.index!);
+      const end = model.getPositionAt(m.index! + m[0].length);
+      const v = vars.get(m[1]);
+      const hover = !v
+        ? `Undefined variable \`${m[1]}\` — define it in Variables & Environments`
+        : v.secret
+          ? `\`${v.name}\` · secret (from ${v.scope === "project" ? "Project" : "environment"})`
+          : `\`${v.name}\` = \`${v.value}\``;
+      list.push({
+        range: new monaco.Range(start.lineNumber, start.column, end.lineNumber, end.column),
+        options: { inlineClassName: v ? "var-ok" : "var-missing", hoverMessage: { value: hover } },
+      });
+    }
+    decorations.set(list);
+  }
 
   onMount(() => {
     editor = monaco.editor.create(el, {
@@ -39,7 +69,9 @@
     }
     editor.onDidChangeModelContent(() => {
       if (!applying) onChange?.(editor!.getValue());
+      decorate();
     });
+    editor.onDidChangeModel(() => decorate());
     editor.addAction({
       id: "soap.send",
       label: "Send Request",
@@ -70,6 +102,11 @@
 
   $effect(() => {
     editor?.updateOptions({ wordWrap: wordWrap ? "on" : "off" });
+  });
+
+  $effect(() => {
+    void vars;
+    decorate();
   });
 
   onDestroy(() => {

@@ -91,11 +91,49 @@ export interface SavedRequest {
   assertions: Assertion[];
 }
 
+export interface Variable {
+  name: string;
+  /** Always "" for secrets: their value lives in the OS keychain. */
+  value: string;
+  secret: boolean;
+}
+
+export interface Environment {
+  id: string;
+  name: string;
+  variables: Variable[];
+}
+
 export interface Project {
   version: number;
+  /** Stable id; namespaces this project's secrets in the keychain. */
+  id: string;
   name: string;
+  variables: Variable[];
+  environments: Environment[];
+  activeEnvironment: string | null;
   wsdls: WsdlEntry[];
   requests: SavedRequest[];
+}
+
+/** A resolved variable sent with a request: a plain value or a keychain key. */
+export interface VarBinding {
+  name: string;
+  value?: string;
+  secretKey?: string;
+}
+
+export interface Session {
+  project: Project;
+  path: string | null;
+  dirty: boolean;
+  openTabs: string[];
+  activeId: string | null;
+}
+
+export interface SecretBackend {
+  persistent: boolean;
+  name: string;
 }
 
 export interface PreparedRequest {
