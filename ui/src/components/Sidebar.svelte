@@ -24,7 +24,7 @@
       expanded[key] = true;
     } else {
       expanded[key] = !expanded[key];
-      if (expanded[key]) app.openRequest(reqs[reqs.length - 1].id);
+      if (expanded[key]) app.openRequest(reqs[reqs.length - 1].id, { preview: true });
     }
   }
 
@@ -241,10 +241,10 @@
                   role="button"
                   tabindex="0"
                   title="Double-click to rename"
-                  onclick={() => app.openRequest(r.id)}
+                  onclick={() => app.openRequest(r.id, { preview: true })}
                   ondblclick={() => (renamingId = r.id)}
                   onkeydown={(e) => {
-                    if (e.key === "Enter") app.openRequest(r.id);
+                    if (e.key === "Enter") app.openRequest(r.id, { preview: true });
                     else if (e.key === "F2") renamingId = r.id;
                   }}
                 >

@@ -64,6 +64,16 @@
     return () => clearTimeout(timer);
   });
 
+  // Editing a request keeps its preview tab open. The first run for a request only
+  // records its content; any later change (body, headers, auth, assertions…) pins it.
+  let seen: { id: string; content: string } | null = null;
+  $effect(() => {
+    const id = req.id;
+    const content = JSON.stringify([req.spec, req.assertions]);
+    if (seen?.id === id && seen.content !== content) untrack(() => app.keepOpen(id));
+    seen = { id, content };
+  });
+
   function goTo(i: Issue) {
     if (i.start == null || i.end == null) return;
     tab = "body";

@@ -9,11 +9,15 @@
       <div
         class="tab"
         class:active={app.activeId === id}
+        class:preview={app.previewId === id}
         role="tab"
         tabindex="0"
         aria-selected={app.activeId === id}
-        title="{app.interfaceLabel(r.wsdlId, r.interfaceName)} › {r.operationName} › {r.name}"
+        title="{app.interfaceLabel(r.wsdlId, r.interfaceName)} › {r.operationName} › {r.name}{app.previewId === id
+          ? '\nPreview: replaced by the next request you open from the sidebar. Edit, send or double-click to keep it open.'
+          : ''}"
         onclick={() => (app.activeId = id)}
+        ondblclick={() => app.keepOpen(id)}
         onkeydown={(e) => e.key === "Enter" && (app.activeId = id)}
         onauxclick={(e) => e.button === 1 && app.closeTab(id)}
       >
@@ -68,6 +72,9 @@
   }
   .label b {
     font-weight: 600;
+  }
+  .tab.preview .label {
+    font-style: italic;
   }
   .close {
     opacity: 0;

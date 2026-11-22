@@ -88,6 +88,11 @@ class AppState {
   path = $state<string | null>(null);
   dirty = $state(false);
   openTabs = $state<string[]>([]);
+  /**
+   * The preview tab: opened by browsing the sidebar and replaced by the next one opened
+   * that way, until the request is edited, sent, or its tab double-clicked.
+   */
+  previewId = $state<string | null>(null);
   activeId = $state<string | null>(null);
   runs = $state<Record<string, RunState>>({});
   recent = $state<string[]>(JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]"));
@@ -254,14 +259,29 @@ class AppState {
     if (cur) this.newRequest(cur.wsdl, cur.iface, cur.op);
   }
 
-  openRequest(id: string) {
-    if (!this.openTabs.includes(id)) this.openTabs.push(id);
+  /**
+   * Show a request in a tab. With `preview`, it takes the place of the current preview tab
+   * (if any) instead of adding one. A request that already has a tab just becomes active.
+   */
+  openRequest(id: string, { preview = false } = {}) {
+    if (!this.openTabs.includes(id)) {
+      const slot = preview && this.previewId ? this.openTabs.indexOf(this.previewId) : -1;
+      if (slot >= 0) this.openTabs[slot] = id;
+      else this.openTabs.push(id);
+      if (preview) this.previewId = id;
+    }
     this.activeId = id;
+  }
+
+  /** Turn a preview tab into a normal one. */
+  keepOpen(id: string) {
+    if (this.previewId === id) this.previewId = null;
   }
 
   closeTab(id: string) {
     const i = this.openTabs.indexOf(id);
     if (i < 0) return;
+    if (this.previewId === id) this.previewId = null;
     this.openTabs.splice(i, 1);
     if (this.activeId === id) this.activeId = this.openTabs[Math.min(i, this.openTabs.length - 1)] ?? null;
   }
@@ -335,6 +355,7 @@ class AppState {
   async send(id: string) {
     const req = this.request(id);
     if (!req || this.runs[id]?.sending) return;
+    this.keepOpen(id);
     const callId = uid();
     const usesSecret = [...this.effectiveVars.values()].some(
       (v) => v.secret && JSON.stringify(req.spec).match(new RegExp(`\\{\\{\\s*${v.name.replace(/[.]/g, "\\.")}\\s*\\}\\}`)),
@@ -380,6 +401,7 @@ class AppState {
     this.path = path;
     this.dirty = false;
     this.openTabs = [];
+    this.previewId = null;
     this.activeId = null;
     this.runs = {};
     this.secretStatus = {};
@@ -411,7 +433,7 @@ class AppState {
       this.reset(project, chosen);
       this.clearPlaceholderEndpoints();
       this.remember(chosen);
-      if (project.requests[0]) this.openRequest(project.requests[0].id);
+      if (project.requests[0]) this.openRequest(project.requests[0].id, { preview: true });
     } catch (e) {
       await message(String(e), { title: "Could not open project", kind: "error" });
       if (path) this.forget(path);
