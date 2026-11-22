@@ -192,9 +192,13 @@ class AppState {
   }
 
   toggleCollapsed(wsdlId: string, name: string) {
+    this.setCollapsed(wsdlId, name, !this.isCollapsed(wsdlId, name));
+  }
+
+  setCollapsed(wsdlId: string, name: string, collapsed: boolean) {
     const k = this.collapseKey(wsdlId, name);
-    if (this.collapsed[k]) delete this.collapsed[k];
-    else this.collapsed[k] = true;
+    if (collapsed) this.collapsed[k] = true;
+    else delete this.collapsed[k];
     localStorage.setItem(COLLAPSED_KEY, JSON.stringify(this.collapsed));
   }
 

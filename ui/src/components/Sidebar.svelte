@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick, untrack } from "svelte";
   import { plural, shortcut } from "../lib/platform";
   import { app, basename } from "../lib/state.svelte";
   import type { Interface, Operation, WsdlEntry } from "../lib/types";
@@ -26,6 +27,32 @@
       if (expanded[key]) app.openRequest(reqs[reqs.length - 1].id);
     }
   }
+
+  // Reveal the open request: expand its interface and operation and scroll it into view.
+  // Runs only when a different request becomes active, so collapsing afterwards sticks.
+  $effect(() => {
+    const id = app.activeId;
+    if (!id) return;
+    untrack(() => {
+      const r = app.request(id);
+      if (!r) return;
+      if (app.isCollapsed(r.wsdlId, r.interfaceName)) app.setCollapsed(r.wsdlId, r.interfaceName, false);
+      expanded[`${r.wsdlId}/${r.interfaceName}/${r.operationName}`] = true;
+    });
+    tick().then(() => {
+      const tree = treeEl;
+      const row = tree?.querySelector<HTMLElement>(`[data-request-id="${CSS.escape(id)}"]`);
+      if (!tree || !row) return;
+      // Scroll only the tree: scrollIntoView would also scroll the (overflow: hidden)
+      // page and app layout, shifting the whole window.
+      const t = tree.getBoundingClientRect();
+      const r = row.getBoundingClientRect();
+      if (r.top < t.top) tree.scrollTop -= t.top - r.top;
+      else if (r.bottom > t.bottom) tree.scrollTop += r.bottom - t.bottom;
+    });
+  });
+
+  let treeEl = $state<HTMLDivElement>();
 
   function menu(action: () => unknown) {
     menuOpen = false;
@@ -110,7 +137,7 @@
     <input placeholder="Filter operations" bind:value={filter} />
   </div>
 
-  <div class="tree">
+  <div class="tree" bind:this={treeEl}>
     {#each app.project.wsdls as w (w.id)}
       <div class="row group" title={`${w.source}${w.imports?.length ? `\n+ ${plural(w.imports.length, "imported document")}` : ""}`}>
         <span class="label caption">{basename(w.source.replace(/\?wsdl$/i, ""))}</span>
@@ -209,6 +236,8 @@
                 <div
                   class="row l2 req"
                   class:active={app.activeId === r.id}
+                  aria-current={app.activeId === r.id ? "true" : undefined}
+                  data-request-id={r.id}
                   role="button"
                   tabindex="0"
                   title="Double-click to rename"
