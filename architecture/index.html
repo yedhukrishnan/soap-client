@@ -153,17 +153,17 @@
     </nav>
 
     <header>
-      <p class="tag">// architecture · v0.2.3</p>
+      <p class="tag">// architecture · v0.3.0</p>
       <h1>How it's built.<br><span>Rust inside, web on top.</span></h1>
       <p class="lead">A tour of the architecture, the technology choices and the reasons behind them. Written for anyone who knows software but not necessarily Rust.</p>
       <div class="facts">
         <span class="fact">Rust 2024</span>
         <span class="fact">Tauri 2</span>
         <span class="fact">Svelte 5 + TypeScript</span>
-        <span class="fact">~2,400 lines core</span>
-        <span class="fact">~1,000 lines shell</span>
-        <span class="fact">~4,300 lines UI</span>
-        <span class="fact">45 Rust tests</span>
+        <span class="fact">~4,500 lines core</span>
+        <span class="fact">~1,100 lines shell</span>
+        <span class="fact">~4,800 lines UI</span>
+        <span class="fact">63 Rust tests</span>
       </div>
     </header>
 
@@ -185,7 +185,7 @@
       <h2>// overview</h2>
       <div class="prose" style="display:grid;gap:14px">
         <p class="big">Import a WSDL, get a request for every operation, send it, check the response.</p>
-        <p style="color:var(--muted)">A <strong style="color:var(--fg)">WSDL</strong> is the XML file that describes a SOAP service. SOAP Client reads it, along with every schema it imports, and writes a ready-to-edit sample request for each operation. You fill in values, press Send, and the response comes back with automatic checks: status code, XPath, no SOAP Fault, response time. Around that loop sit environments and <code>{{variables}}</code>, HTTP Basic and WS-Security, secrets in the system keychain, autosave and shareable project files.</p>
+        <p style="color:var(--muted)">A <strong style="color:var(--fg)">WSDL</strong> is the XML file that describes a SOAP service. SOAP Client reads it, along with every schema it imports, and writes a ready-to-edit sample request for each operation. You fill in values, press Send, and the response comes back with automatic checks: status code, XPath, no SOAP Fault, response time. While you edit, the request is checked against the WSDL and its schemas. Around that loop sit environments and <code>{{variables}}</code>, HTTP Basic and WS-Security, secrets in the system keychain, autosave, shareable project files, and light and dark themes.</p>
       </div>
       <figure class="shot">
         <img src="../assets/screenshots/request-response.jpg" width="1800" height="1089" loading="lazy"
@@ -202,9 +202,9 @@
         <div class="layer ui">
           <div class="lh"><h3>Interface · Svelte 5 in the system webview</h3><span>ui/src/</span></div>
           <div class="boxes">
-            <div class="box"><b>App.svelte</b><span>Window layout, resizable panes, menu events, autosave</span></div>
+            <div class="box"><b>App.svelte</b><span>Window layout, resizable panes, menu events, autosave, theme</span></div>
             <div class="box"><b>components/*</b><span>Sidebar, request and response panes, auth, headers, assertions, dialogs</span></div>
-            <div class="box"><b>XmlEditor · monaco.ts</b><span>VS Code's editor, one model per tab for separate undo</span></div>
+            <div class="box"><b>XmlEditor · monaco.ts</b><span>VS Code's editor, one model per tab for separate undo, validation markers</span></div>
             <div class="box"><b>lib/state.svelte.ts</b><span>All app state: project, tabs, environments, dirty flag</span></div>
             <div class="box"><b>lib/api.ts · types.ts</b><span>Typed wrappers for every backend command</span></div>
           </div>
@@ -213,10 +213,10 @@
         <div class="layer shell">
           <div class="lh"><h3>Shell · Tauri 2 application</h3><span>src-tauri/src/</span></div>
           <div class="boxes">
-            <div class="box"><b>lib.rs</b><span>Starts Tauri; registers plugins, state and 18 commands</span></div>
+            <div class="box"><b>lib.rs</b><span>Starts Tauri; registers plugins, state and 20 commands</span></div>
             <div class="box"><b>commands.rs</b><span>Validates input, resolves variables, handles cancel</span></div>
             <div class="box"><b>secrets.rs</b><span>Owns the keychain. Set, delete, check; never returns a value</span></div>
-            <div class="box"><b>menu.rs</b><span>Native menu bar, forwarded to the UI as events</span></div>
+            <div class="box"><b>menu.rs · appearance.rs</b><span>Native menu bar, forwarded to the UI as events; Light, Dark or System</span></div>
             <div class="box"><b>updates.rs</b><span>Daily update check, skip version, open releases</span></div>
           </div>
         </div>
@@ -226,8 +226,9 @@
           <div class="boxes">
             <div class="box"><b>wsdl/loader · parser</b><span>Fetch a WSDL and its imports; turn it into interfaces and operations</span></div>
             <div class="box"><b>xsd/sample</b><span>Walk the schemas, write a sample envelope with <code>?</code> placeholders</span></div>
+            <div class="box"><b>validate · xsd/validate</b><span>Check a request against its WSDL and schemas as you type</span></div>
             <div class="box"><b>http · envelope</b><span>Headers, Basic auth, WS-Security, send, mask secrets</span></div>
-            <div class="box"><b>vars</b><span>Find and replace <code>{{name}}</code>, XML-escaped in the body</span></div>
+            <div class="box"><b>vars</b><span>Find and replace <code>{{name}}</code>, XML-escaped in the body; spot mistyped ones</span></div>
             <div class="box"><b>assertions</b><span>Status, contains, XPath, no SOAP Fault, max time</span></div>
             <div class="box"><b>project · session · update</b><span>JSON files, atomic private writes, version check</span></div>
           </div>
@@ -240,7 +241,7 @@
             <div class="box"><b>WSDL / XSD hosts</b><span>Where service descriptions come from</span></div>
             <div class="box"><b>macOS Keychain</b><span>Touch ID protected in signed builds</span></div>
             <div class="box"><b>Secret Service</b><span>GNOME Keyring, KWallet, KeePassXC</span></div>
-            <div class="box"><b>App data folder</b><span>session.json, secret-index.json, updates.json</span></div>
+            <div class="box"><b>App data folder</b><span>session.json, secret-index.json, updates.json, appearance.json</span></div>
             <div class="box"><b>latest.json</b><span>Static file on this site naming the newest version</span></div>
           </div>
         </div>
@@ -261,7 +262,7 @@
             <tr><td>TypeScript</td><td><span class="l ui">ui</span></td><td>All UI code</td><td><code>types.ts</code> mirrors the Rust structs, so a mismatched command is caught at build time.</td></tr>
             <tr><td>Vite</td><td><span class="l ui">ui</span></td><td>Dev server, bundler</td><td>Tauri's recommended tool. Hot reload during development; targets Safari 16 to match the macOS webview.</td></tr>
             <tr><td>Monaco</td><td><span class="l ui">ui</span></td><td>XML editing</td><td>VS Code's editor: highlighting, folding, find, per-tab undo. Only the base worker is loaded.</td></tr>
-            <tr><td>roxmltree</td><td><span class="l core">core</span></td><td>Reading WSDL and XSD</td><td>Fast read-only XML tree with correct namespace handling. Reading is all that's needed.</td></tr>
+            <tr><td>roxmltree</td><td><span class="l core">core</span></td><td>Reading WSDL, XSD and requests</td><td>Fast read-only XML tree with correct namespace handling and the position of every node, so validation warnings point at the right spot. Reading is all that's needed.</td></tr>
             <tr><td>quick-xml</td><td><span class="l core">core</span></td><td>Pretty-printing</td><td>Streaming reader and writer, reformats a response without building a tree.</td></tr>
             <tr><td>sxd-xpath</td><td><span class="l core">core</span></td><td>XPath assertions</td><td>One of the few pure-Rust XPath 1.0 implementations.</td></tr>
             <tr><td>reqwest + rustls</td><td><span class="l core">core</span></td><td>HTTP</td><td>The standard Rust HTTP client, with TLS written in Rust instead of OpenSSL, so it behaves the same everywhere. HTTP/2, gzip and system proxy enabled.</td></tr>
@@ -288,6 +289,10 @@
           <p>Editing is constant, and keeping that state in Rust would mean an IPC round trip per keystroke. Instead the UI holds the project and sends a snapshot to save 700 ms after the last change. Rust keeps only three pieces of state: requests it may need to cancel, the secret store, and a lock for update preferences.</p>
         </details>
         <details>
+          <summary>Why write a schema validator instead of using libxml2?<span>no false alarms</span></summary>
+          <p>A request is a template: it holds <code>{{variables}}</code> and <code>?</code> placeholders that a strict validator would reject, and checking it after substitution would put secret values into messages. libxml2 is also a C library to build and ship on every platform, and it stops at the first error. The validator in <code>xsd/validate.rs</code> skips template values, reports every problem with its position, recovers after a mistake so one error doesn't cascade, and accepts anything it doesn't understand rather than reporting it. Everything except malformed XML is a warning, so it can never stop you sending.</p>
+        </details>
+        <details>
           <summary>Why one keychain item per project?<span>fewer prompts</span></summary>
           <p>Every keychain read can make macOS ask for permission or Touch ID. So all of a project's secrets share one JSON "vault" item, read once and kept in memory until unused for 15 minutes. "Is this secret set?" is answered from a file that lists only key names, which never prompts.</p>
         </details>
@@ -312,7 +317,7 @@
           <h3>Sending a request</h3>
           <ol class="flow">
             <li><div><span class="l ui">ui</span><p>Send collects the request and the active environment's variables. Secrets are passed as a keychain key, not a value.</p></div></li>
-            <li><div><span class="l shell">shell</span><p><code>send_request</code> finds which <code>{{names}}</code> are used and reads only those secrets.</p></div></li>
+            <li><div><span class="l shell">shell</span><p><code>send_request</code> refuses a body that isn't well-formed XML, then finds which <code>{{names}}</code> are used and reads only those secrets.</p></div></li>
             <li><div><span class="l core">core</span><p><code>vars::resolve_spec</code> substitutes them. Any undefined variable stops the send and is named, so nothing half-filled goes out.</p></div></li>
             <li><div><span class="l core">core</span><p><code>http::prepare</code> adds SOAP 1.1 or 1.2 headers and Basic auth or WS-Security; your own headers win.</p></div></li>
             <li><div><span class="l core">core</span><p><code>http::send</code> posts it. Cancel races it with <code>tokio::select!</code>.</p></div></li>
@@ -330,6 +335,33 @@
 <span class="t">Svelte UI</span>     ◀── ResponseData (secrets masked) ──────
 <span class="t">Svelte UI</span>     ── run_assertions(list, response) ────▶  <span class="t">commands.rs</span>
 <span class="ok">✓ 4/4 assertions passed</span></pre>
+      <div class="two">
+        <div class="panel">
+          <h3>Checking a request as you type</h3>
+          <ol class="flow">
+            <li><div><span class="l ui">ui</span><p>300 ms after the last edit, the request pane calls <code>validate_request</code> with the body, the operation and WSDL it came from, and the <em>names</em> of the defined variables, never their values.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>validate.rs</code> parses the body. Malformed XML is the only error, and it also blocks Send.</p></div></li>
+            <li><div><span class="l core">core</span><p>It flags mistyped placeholders such as <code>{{password}</code>, then checks the envelope: SOAP version, SOAPAction, Header before Body, and the rpc wrapper and parts the operation expects.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>xsd/validate.rs</code> walks each part against the schema: order, how often each element may appear, namespaces, attributes. <code>xsd/datatypes.rs</code> checks values against their type and facets.</p></div></li>
+            <li><div><span class="l ui">ui</span><p>Each issue comes back with its position and becomes an underline in Monaco and a line in the list below the editor.</p></div></li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>Built not to cry wolf</h3>
+          <ul class="plain">
+            <li>Everything except malformed XML is a warning. The request can always be sent, and the <strong>Validate</strong> toggle turns the checks off.</li>
+            <li>Values containing <code>{{variables}}</code> are skipped: they're only known at send time. Checking the template also keeps secret values out of messages.</li>
+            <li>Schema features it doesn't support, such as <code>pattern</code> facets and SOAP-encoded types, are accepted rather than reported.</li>
+            <li>After a mistake it picks up again at the next element it recognises, so one misplaced element is one warning.</li>
+            <li>Wrong values get a hint where possible: <em>"usd" is not an allowed value. Did you mean "USD"?</em></li>
+          </ul>
+        </div>
+      </div>
+      <figure class="shot">
+        <img src="../assets/screenshots/validation.jpg" width="1800" height="1089" loading="lazy"
+             alt="A mistyped variable underlined in the request editor, with its warning shown on hover and a warning count below">
+        <figcaption>A mistyped variable, underlined as you type. The request can still be sent.</figcaption>
+      </figure>
     </section>
 
     <section id="core">
@@ -338,22 +370,25 @@
         <table>
           <thead><tr><th>file</th><th style="text-align:right">lines</th><th>responsibility</th></tr></thead>
           <tbody>
-            <tr><td>xsd/sample.rs</td><td class="num">413</td><td>Sample XML from schema types: sequences, choices, attributes, extensions, groups; recursion guard at depth 40.</td></tr>
+            <tr><td>xsd/validate.rs</td><td class="num">1,141</td><td>Walks a request against the schema: sequence, choice, all, groups, substitution groups, extensions and restrictions, attributes, <code>xsi:type</code> and <code>xsi:nil</code>. Recovers after a mistake; ignores what it doesn't support.</td></tr>
+            <tr><td>xsd/sample.rs</td><td class="num">400</td><td>Sample XML from schema types: sequences, choices, attributes, extensions, groups; recursion guard at depth 40.</td></tr>
+            <tr><td>xsd/datatypes.rs</td><td class="num">380</td><td>Built-in XSD types and facets: number ranges, digits, dates and durations, lengths, whitespace rules, allowed values.</td></tr>
+            <tr><td>wsdl/parser.rs</td><td class="num">321</td><td>WSDL 1.1 into <code>WsdlDocument → Interface → Operation</code>, including the Body shape each operation expects. Document and RPC style; a clear error for WSDL 2.0.</td></tr>
+            <tr><td>validate.rs</td><td class="num">311</td><td>Request checks: well-formed XML, mistyped placeholders, SOAPAction, SOAP version, envelope layout, rpc wrapper and parts. Hands each part to <code>xsd/validate.rs</code>.</td></tr>
             <tr><td>http.rs</td><td class="num">305</td><td>Request spec, auth, <code>prepare</code> (pure, easy to test), <code>send</code>, secret masking, redirect rules, 100 MB response cap.</td></tr>
-            <tr><td>wsdl/parser.rs</td><td class="num">297</td><td>WSDL 1.1 into <code>WsdlDocument → Interface → Operation</code>. Document and RPC style; a clear error for WSDL 2.0.</td></tr>
+            <tr><td>vars.rs</td><td class="num">265</td><td><code>{{ name }}</code> scanning, substitution, list of values to mask, and spotting mistyped placeholders.</td></tr>
             <tr><td>assertions.rs</td><td class="num">222</td><td>The <code>Check</code> enum and <code>evaluate</code>. XPath can use any prefix in the response plus <code>soap11</code>/<code>soap12</code>.</td></tr>
             <tr><td>update.rs</td><td class="num">211</td><td>Version comparison, security-release flag, preferences file.</td></tr>
             <tr><td>envelope.rs</td><td class="num">195</td><td>SOAP version detection; inserts <code>wsse:Security</code> as a text edit so your formatting is kept.</td></tr>
             <tr><td>project.rs</td><td class="num">186</td><td>Project file format, import entry point, atomic writes via temp file and rename, 0600 permissions.</td></tr>
             <tr><td>wsdl/loader.rs</td><td class="num">183</td><td>Recursive import loader for files and URLs, with the security rules below.</td></tr>
-            <tr><td>vars.rs</td><td class="num">168</td><td><code>{{ name }}</code> scanning, substitution, list of values to mask.</td></tr>
-            <tr><td>xsd/mod.rs</td><td class="num">85</td><td><code>SchemaIndex</code>: global elements and types by qualified name.</td></tr>
-            <tr><td>wsdl/model.rs</td><td class="num">62</td><td>The data shapes sent to the UI.</td></tr>
+            <tr><td>xsd/mod.rs</td><td class="num">100</td><td><code>SchemaIndex</code>: global elements and types by qualified name.</td></tr>
+            <tr><td>wsdl/model.rs</td><td class="num">99</td><td>The data shapes sent to the UI.</td></tr>
             <tr><td>error · session · xml_fmt</td><td class="num">156</td><td>Error enum, autosave file, pretty-printer.</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="prose" style="color:var(--muted);font-size:16px">Unit tests sit in <code>#[cfg(test)]</code> blocks at the bottom of source files. Integration tests in <code>crates/soap-core/tests/</code> run against WSDL fixtures: a calculator, an RPC service, a complex schema, and a multi-file WSDL with nested imports and a deliberately broken one.</p>
+      <p class="prose" style="color:var(--muted);font-size:16px">Unit tests sit in <code>#[cfg(test)]</code> blocks at the bottom of source files. Integration tests in <code>crates/soap-core/tests/</code> run against WSDL fixtures: a calculator, an RPC service, a complex schema, and a multi-file WSDL with nested imports and a deliberately broken one, and an order service whose schema uses most of what the validator understands.</p>
     </section>
 
     <section id="security">
@@ -394,8 +429,9 @@
             <tr><td>session.json</td><td>App data folder</td><td>Autosave of the project, open tabs and selection.</td></tr>
             <tr><td>secret-index.json</td><td>App data folder</td><td>Names of keys that have a stored secret. No values.</td></tr>
             <tr><td>updates.json</td><td>App data folder</td><td>Last check, auto-check setting, skipped version.</td></tr>
+            <tr><td>appearance.json</td><td>App data folder</td><td>Light, Dark or System.</td></tr>
             <tr><td>Keychain vault</td><td>Service <code>dev.soapclient.app</code></td><td>One item per project holding its secrets.</td></tr>
-            <tr><td>localStorage</td><td>Inside the webview</td><td>Pane sizes, recent files, collapsed tree nodes, trusted project paths.</td></tr>
+            <tr><td>localStorage</td><td>Inside the webview</td><td>Pane sizes, recent files, collapsed tree nodes, trusted project paths, the Validate toggle, a copy of the appearance choice for a flicker-free start.</td></tr>
           </tbody>
         </table>
       </div>
@@ -530,7 +566,7 @@ pub struct <span class="v">InFlight</span>(
           <ol class="flow">
             <li><div><p><code>ui/src/lib/types.ts</code>: every data shape in one file.</p></div></li>
             <li><div><p><code>ui/src/lib/api.ts</code>: everything the UI can ask Rust to do.</p></div></li>
-            <li><div><p><code>src-tauri/src/commands.rs</code>: what each of those does, in about 190 lines.</p></div></li>
+            <li><div><p><code>src-tauri/src/commands.rs</code>: what each of those does, in about 230 lines.</p></div></li>
             <li><div><p><code>crates/soap-core/src/http.rs</code>: the heart of sending a request.</p></div></li>
             <li><div><p><code>ui/src/lib/state.svelte.ts</code>: how the UI holds and changes the project.</p></div></li>
           </ol>
@@ -564,6 +600,7 @@ pub struct <span class="v">InFlight</span>(
         <dt>Webview</dt><dd>A browser engine embedded in a window, without the browser around it.</dd>
         <dt>CSP</dt><dd>Content Security Policy: what a page may load or connect to.</dd>
         <dt>Notarization</dt><dd>Apple scanning a signed app so macOS opens it without a warning.</dd>
+        <dt>Facet</dt><dd>A rule that narrows an XSD type: a length, a range, a number of digits, a list of allowed values.</dd>
         <dt>Secret Service</dt><dd>The freedesktop.org API that Linux keyrings implement.</dd>
       </dl>
     </section>
