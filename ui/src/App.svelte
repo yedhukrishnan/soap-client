@@ -185,6 +185,9 @@
   .layout {
     display: grid;
     height: 100vh;
+    /* One row exactly the window's height: without it the row grows to fit a long
+       sidebar, which then never scrolls and pushes the page past the window. */
+    grid-template-rows: minmax(0, 1fr);
   }
   main {
     display: flex;

@@ -267,6 +267,7 @@
     background: var(--bg-side);
     border-right: 1px solid var(--border);
     min-width: 0;
+    min-height: 0;
   }
   .project-row {
     position: relative;
@@ -372,6 +373,7 @@
   }
   .tree {
     flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 0 6px 8px;
   }
