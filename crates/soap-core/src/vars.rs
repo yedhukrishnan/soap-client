@@ -48,6 +48,86 @@ fn scan(text: &str) -> Vec<(std::ops::Range<usize>, &str)> {
     out
 }
 
+/// Text that looks like a variable placeholder but isn't one, e.g. `{{password}` or
+/// `{{ 1bad }}`: such text would be sent literally. Returns byte ranges.
+pub fn malformed_placeholders(text: &str) -> Vec<std::ops::Range<usize>> {
+    let valid: Vec<_> = scan(text).into_iter().map(|(r, _)| r).collect();
+    let inside = |i: usize| valid.iter().any(|r| r.contains(&i));
+    let bytes = text.as_bytes();
+    let word = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-' | b' ');
+    let mut out: Vec<std::ops::Range<usize>> = Vec::new();
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        let pair = &bytes[i..i + 2];
+        if (pair == b"{{" || pair == b"}}") && !inside(i) && !inside(i + 1) {
+            let (mut start, mut end) = (i, i + 2);
+            if pair == b"{{" {
+                while end < bytes.len() && word(bytes[end]) {
+                    end += 1;
+                }
+                let close = end;
+                while end < bytes.len() && end < close + 2 && bytes[end] == b'}' {
+                    end += 1;
+                }
+            } else {
+                while start > 0 && word(bytes[start - 1]) {
+                    start -= 1;
+                }
+                if start > 0 && bytes[start - 1] == b'{' {
+                    start -= 1;
+                }
+            }
+            // Trim the spaces `word` allowed at the edges.
+            while start < end && bytes[start] == b' ' {
+                start += 1;
+            }
+            while end > start && bytes[end - 1] == b' ' {
+                end -= 1;
+            }
+            match out.last_mut() {
+                Some(last) if start <= last.end => last.end = last.end.max(end),
+                _ => out.push(start..end),
+            }
+            i = end.max(i + 2);
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Single-brace spellings of a defined variable, e.g. `{password}` or `{password` when
+/// `password` is a variable: almost certainly a mistyped `{{password}}`. Only defined
+/// names count, so legitimate braces (GUIDs like `{3F25…}`, JSON) are never matched.
+/// Returns (byte range, variable name).
+pub fn single_brace_placeholders<'n>(text: &str, names: &'n [String]) -> Vec<(std::ops::Range<usize>, &'n str)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    for (i, _) in text.match_indices('{') {
+        // `{{` is a real (or separately reported broken) placeholder.
+        if (i > 0 && bytes[i - 1] == b'{') || bytes.get(i + 1) == Some(&b'{') {
+            continue;
+        }
+        let after = &text[i + 1..];
+        let lead = after.len() - after.trim_start_matches(' ').len();
+        let rest = &after[lead..];
+        let len = rest.find(|c: char| !is_name_char(c)).unwrap_or(rest.len());
+        let word = &rest[..len];
+        let Some(name) = names.iter().find(|n| n.as_str() == word) else { continue };
+        let mut end = i + 1 + lead + len;
+        let tail = &text[end..];
+        let spaces = tail.len() - tail.trim_start_matches(' ').len();
+        if tail[spaces..].starts_with('}') {
+            if tail[spaces..].starts_with("}}") {
+                continue; // `{name}}`: reported as a broken placeholder
+            }
+            end += spaces + 1;
+        }
+        out.push((i..end, name.as_str()));
+    }
+    out
+}
+
 /// Names of all variables referenced in `text`.
 pub fn references(text: &str) -> BTreeSet<String> {
     scan(text).into_iter().map(|(_, n)| n.to_string()).collect()
@@ -142,6 +222,23 @@ mod tests {
     fn scans_names_and_ignores_non_placeholders() {
         let refs = references("a {{x}} b {{ y.z }} {{1bad}} {{ }} {{a b}} {{x}} {{unterminated");
         assert_eq!(refs.into_iter().collect::<Vec<_>>(), ["x", "y.z"]);
+    }
+
+    #[test]
+    fn finds_malformed_placeholders() {
+        let text = "<a>{{password}</a><b>{{ok}}</b><c>{id}}</c><d>{{ 1bad }}</d><e>{x}</e><f>{{</f>";
+        let found: Vec<&str> = malformed_placeholders(text).into_iter().map(|r| &text[r]).collect();
+        assert_eq!(found, ["{{password}", "{id}}", "{{ 1bad }}", "{{"]);
+        assert!(malformed_placeholders("{{a}}{{ b.c }}").is_empty());
+    }
+
+    #[test]
+    fn finds_single_brace_spellings_of_defined_variables() {
+        let names = ["password".to_string(), "id".to_string()];
+        let text = "<a>{password}</a><b>{password</b><c>{ id }</c><d>{{password}}</d><e>{other}</e><f>{3F25-AB}</f><g>{idx}</g><h>{password}}</h>";
+        let found: Vec<(&str, &str)> = single_brace_placeholders(text, &names).into_iter().map(|(r, n)| (&text[r], n)).collect();
+        assert_eq!(found, [("{password}", "password"), ("{password", "password"), ("{ id }", "id")]);
+        assert!(single_brace_placeholders("{password}", &[]).is_empty());
     }
 
     #[test]
