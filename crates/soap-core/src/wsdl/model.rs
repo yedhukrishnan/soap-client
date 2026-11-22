@@ -59,4 +59,41 @@ pub struct Operation {
     pub documentation: Option<String>,
     /// A full SOAP envelope with placeholder values, ready to edit.
     pub sample_request: String,
+    /// What the request Body must contain; used to validate requests against the WSDL.
+    #[serde(default)]
+    pub input_body: BodyShape,
+}
+
+/// A namespace-qualified XML name.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct XmlName {
+    pub namespace: String,
+    pub name: String,
+}
+
+/// The expected content of an operation's request `soap:Body`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BodyShape {
+    /// rpc style: the wrapper element named after the operation; parts go inside it.
+    #[serde(default)]
+    pub rpc_wrapper: Option<XmlName>,
+    #[serde(default)]
+    pub parts: Vec<BodyPart>,
+    /// `use="encoded"` (SOAP encoding): part contents are not checked against the schema.
+    #[serde(default)]
+    pub encoded: bool,
+}
+
+/// One message part: a global element (`element=`), or an unqualified accessor
+/// element named after the part whose content has a schema type (`type=`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BodyPart {
+    pub name: String,
+    #[serde(default)]
+    pub element: Option<XmlName>,
+    #[serde(default)]
+    pub type_name: Option<XmlName>,
 }

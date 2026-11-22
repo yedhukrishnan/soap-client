@@ -1,6 +1,8 @@
 //! Lookup tables over the inline XML Schemas of a WSDL document.
 
+pub mod datatypes;
 pub mod sample;
+pub mod validate;
 
 use std::collections::HashMap;
 
@@ -82,4 +84,17 @@ pub fn resolve_qname(ctx: Node, value: &str) -> QName {
 /// The `xs:schema` element enclosing a node.
 pub fn enclosing_schema<'a, 'i>(n: Node<'a, 'i>) -> Option<Node<'a, 'i>> {
     n.ancestors().find(|a| is_xsd(a, "schema"))
+}
+
+/// Namespace of an element declaration, honouring `form` / `elementFormDefault`.
+pub fn element_namespace(el: Node) -> Option<String> {
+    let schema = enclosing_schema(el)?;
+    let tns = schema.attribute("targetNamespace").filter(|s| !s.is_empty())?;
+    let is_global = el.parent().is_some_and(|p| is_xsd(&p, "schema"));
+    let qualified = is_global
+        || el
+            .attribute("form")
+            .or_else(|| schema.attribute("elementFormDefault"))
+            == Some("qualified");
+    qualified.then(|| tns.to_string())
 }

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use roxmltree::{Node, NodeId};
 
-use super::{QName, SchemaIndex, enclosing_schema, is_xsd, resolve_qname, xsd_children};
+use super::{QName, SchemaIndex, element_namespace, is_xsd, resolve_qname, xsd_children};
 use crate::{NS_XSD, xml_escape};
 
 pub const INDENT: &str = "   ";
@@ -377,19 +377,6 @@ impl<'s, 'a, 'i> SampleGenerator<'s, 'a, 'i> {
         }
         "?".into()
     }
-}
-
-/// Namespace of an element declaration, honouring `form` / `elementFormDefault`.
-fn element_namespace(el: Node) -> Option<String> {
-    let schema = enclosing_schema(el)?;
-    let tns = schema.attribute("targetNamespace").filter(|s| !s.is_empty())?;
-    let is_global = el.parent().is_some_and(|p| is_xsd(&p, "schema"));
-    let qualified = is_global
-        || el
-            .attribute("form")
-            .or_else(|| schema.attribute("elementFormDefault"))
-            == Some("qualified");
-    qualified.then(|| tns.to_string())
 }
 
 fn occurrence_comment(el: Node, level: usize, out: &mut String) {

@@ -8,6 +8,7 @@ pub mod error;
 pub mod http;
 pub mod project;
 pub mod session;
+pub mod validate;
 pub mod update;
 pub mod vars;
 pub mod wsdl;

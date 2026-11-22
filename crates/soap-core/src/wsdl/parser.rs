@@ -129,14 +129,26 @@ pub fn parse_wsdl_with_imports(text: &str, imports: &[ImportedDoc]) -> Result<Ws
                 .and_then(|q| messages.get(&q).copied());
 
             let input = wsdl_children(op, "input").next();
+            let soap_body = input.and_then(|i| soap_child(i, soap_ns, "body"));
+            let parts = body_parts(soap_body, input_msg);
+            let rpc_ns = soap_body
+                .and_then(|b| b.attribute("namespace"))
+                .filter(|s| !s.is_empty())
+                .unwrap_or(&binding_tns)
+                .to_string();
+            let input_body = BodyShape {
+                rpc_wrapper: (style == Style::Rpc)
+                    .then(|| XmlName { namespace: rpc_ns.clone(), name: op_name.to_string() }),
+                parts: parts.iter().map(|p| part_shape(*p)).collect(),
+                encoded: soap_body.and_then(|b| b.attribute("use")) == Some("encoded"),
+            };
             let ctx = SampleCtx {
                 idx: &idx,
                 preferred: preferred.clone(),
                 version,
-                tns: &binding_tns,
                 messages: &messages,
             };
-            let sample_request = ctx.build_sample(op_name, style, input, soap_ns, input_msg);
+            let sample_request = ctx.build_sample(op_name, style, input, soap_ns, &parts, &rpc_ns);
 
             operations.push(Operation {
                 name: op_name.to_string(),
@@ -144,6 +156,7 @@ pub fn parse_wsdl_with_imports(text: &str, imports: &[ImportedDoc]) -> Result<Ws
                 style,
                 documentation,
                 sample_request,
+                input_body,
             });
         }
 
@@ -167,8 +180,37 @@ struct SampleCtx<'s, 'a, 'i> {
     idx: &'s SchemaIndex<'a, 'i>,
     preferred: HashMap<String, String>,
     version: SoapVersion,
-    tns: &'s str,
     messages: &'s HashMap<QName, Node<'a, 'i>>,
+}
+
+/// The message parts that go into the body (`parts="a b"` on soap:body restricts them).
+fn body_parts<'a, 'i>(soap_body: Option<Node<'a, 'i>>, input_msg: Option<Node<'a, 'i>>) -> Vec<Node<'a, 'i>> {
+    let listed: Option<Vec<&str>> =
+        soap_body.and_then(|b| b.attribute("parts")).map(|p| p.split_whitespace().collect());
+    input_msg
+        .map(|m| {
+            wsdl_children(m, "part")
+                .filter(|p| match (&listed, p.attribute("name")) {
+                    (Some(list), Some(n)) => list.contains(&n),
+                    _ => true,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn part_shape(part: Node) -> BodyPart {
+    let qn = |attr: &str| {
+        part.attribute(attr).map(|v| {
+            let (namespace, name) = resolve_qname(part, v);
+            XmlName { namespace, name }
+        })
+    };
+    BodyPart {
+        name: part.attribute("name").unwrap_or("part").to_string(),
+        element: qn("element"),
+        type_name: qn("type"),
+    }
 }
 
 impl<'s, 'a, 'i> SampleCtx<'s, 'a, 'i> {
@@ -178,25 +220,11 @@ impl<'s, 'a, 'i> SampleCtx<'s, 'a, 'i> {
         style: Style,
         input: Option<Node<'a, 'i>>,
         soap_ns: &str,
-        input_msg: Option<Node<'a, 'i>>,
+        parts: &[Node<'a, 'i>],
+        rpc_ns: &str,
     ) -> String {
         let env = self.version.envelope_prefix();
         let mut g = SampleGenerator::new(self.idx, self.preferred, [env.to_string()]);
-
-        let soap_body = input.and_then(|i| soap_child(i, soap_ns, "body"));
-        // `parts="a b"` restricts which message parts go into the body.
-        let body_parts: Option<Vec<&str>> =
-            soap_body.and_then(|b| b.attribute("parts")).map(|p| p.split_whitespace().collect());
-        let parts: Vec<Node> = input_msg
-            .map(|m| {
-                wsdl_children(m, "part")
-                    .filter(|p| match (&body_parts, p.attribute("name")) {
-                        (Some(list), Some(n)) => list.contains(&n),
-                        _ => true,
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
 
         // Headers declared with <soap:header message="..." part="..."/>.
         let mut header = String::new();
@@ -219,18 +247,14 @@ impl<'s, 'a, 'i> SampleCtx<'s, 'a, 'i> {
         let mut body = String::new();
         match style {
             Style::Document => {
-                for p in &parts {
+                for p in parts {
                     body.push_str(&part_buf(&mut g, *p, 2));
                 }
             }
             Style::Rpc => {
-                let ns = soap_body
-                    .and_then(|b| b.attribute("namespace"))
-                    .filter(|s| !s.is_empty())
-                    .unwrap_or(self.tns);
-                let wrapper = format!("{}:{op_name}", g.prefix_for(ns));
+                let wrapper = format!("{}:{op_name}", g.prefix_for(rpc_ns));
                 line(&mut body, 2, &format!("<{wrapper}>"));
-                for p in &parts {
+                for p in parts {
                     body.push_str(&part_buf(&mut g, *p, 3));
                 }
                 line(&mut body, 2, &format!("</{wrapper}>"));
