@@ -1,3 +1,4 @@
+mod appearance;
 mod commands;
 mod menu;
 mod secrets;
@@ -14,6 +15,7 @@ pub fn run() {
             if let Ok(dir) = app.path().app_data_dir() {
                 app.state::<secrets::Secrets>().init(dir);
             }
+            appearance::apply_to_windows(app.handle(), appearance::load(app.handle()));
             Ok(())
         })
         .manage(commands::InFlight::default())
@@ -36,6 +38,7 @@ pub fn run() {
             commands::secret_rename,
             commands::secret_status,
             commands::secret_project_has,
+            appearance::appearance_get,
             updates::update_check_auto,
             updates::update_skip,
             updates::update_open,

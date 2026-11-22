@@ -1,11 +1,11 @@
 //! Application menu: the standard menus, a clean About panel, and a Help menu with
 //! links. Links are opened from Rust, so the webview needs no opener permission.
 
-use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{AboutMetadata, CheckMenuItem, Menu, MenuEvent, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::updates;
+use crate::{appearance, updates};
 
 pub const AUTHOR: &str = "Yedhu Krishnan";
 pub const EMAIL: &str = "dev@yedhu.me";
@@ -50,6 +50,13 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         updates::prefs(app).auto_check,
         None::<&str>,
     )?;
+
+    let current = appearance::load(app);
+    let choices = appearance::ITEMS
+        .iter()
+        .map(|(a, id, label)| CheckMenuItem::with_id(app, *id, *label, true, *a == current, None::<&str>))
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let appearance_menu = Submenu::with_items(app, "Appearance", true, &[&choices[0], &choices[1], &choices[2]])?;
 
     let link = |i: usize| {
         let (id, label, _) = LINKS[i];
@@ -130,12 +137,18 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
     #[cfg(target_os = "macos")]
     {
-        let view_menu = Submenu::with_items(app, "View", true, &[&PredefinedMenuItem::fullscreen(app, None)?])?;
+        let view_menu = Submenu::with_items(
+            app,
+            "View",
+            true,
+            &[&appearance_menu, &PredefinedMenuItem::separator(app)?, &PredefinedMenuItem::fullscreen(app, None)?],
+        )?;
         Menu::with_items(app, &[&app_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
     }
     #[cfg(not(target_os = "macos"))]
     {
-        Menu::with_items(app, &[&file_menu, &edit_menu, &window_menu, &help_menu])
+        let view_menu = Submenu::with_items(app, "View", true, &[&appearance_menu])?;
+        Menu::with_items(app, &[&file_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
     }
 }
 
@@ -146,7 +159,18 @@ pub fn on_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
         updates::check_now(app);
     } else if event.id() == updates::AUTO_CHECK_ID {
         updates::toggle_auto(app);
+    } else if event.id().as_ref().starts_with("appearance.") {
+        appearance::select(app, event.id().as_ref());
     } else if let Some((_, _, url)) = LINKS.iter().find(|(id, _, _)| event.id() == *id) {
         let _ = app.opener().open_url(*url, None::<&str>);
     }
+}
+
+/// `Menu::get` only looks at the top level; the item lives in a submenu.
+pub(crate) fn find<R: Runtime>(items: &[MenuItemKind<R>], id: &str) -> Option<MenuItemKind<R>> {
+    items.iter().find_map(|item| match item {
+        _ if item.id() == id => Some(item.clone()),
+        MenuItemKind::Submenu(sub) => find(&Submenu::items(sub).ok()?, id),
+        _ => None,
+    })
 }

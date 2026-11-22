@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use soap_core::update::{self, MANIFEST_URL, UpdateInfo, UpdatePrefs};
-use tauri::menu::{MenuItemKind, Submenu};
+use tauri::menu::MenuItemKind;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_opener::OpenerExt;
 
@@ -100,16 +100,7 @@ pub fn check_now<R: Runtime>(app: &AppHandle<R>) {
 pub fn toggle_auto<R: Runtime>(app: &AppHandle<R>) {
     let Ok(prefs) = modify(app, |p| p.auto_check = !p.auto_check) else { return };
     let items = app.menu().and_then(|m| m.items().ok()).unwrap_or_default();
-    if let Some(MenuItemKind::Check(item)) = find(&items, AUTO_CHECK_ID) {
+    if let Some(MenuItemKind::Check(item)) = crate::menu::find(&items, AUTO_CHECK_ID) {
         let _ = item.set_checked(prefs.auto_check);
     }
-}
-
-/// `Menu::get` only looks at the top level; the item lives in a submenu.
-fn find<R: Runtime>(items: &[MenuItemKind<R>], id: &str) -> Option<MenuItemKind<R>> {
-    items.iter().find_map(|item| match item {
-        _ if item.id() == id => Some(item.clone()),
-        MenuItemKind::Submenu(sub) => find(&Submenu::items(sub).ok()?, id),
-        _ => None,
-    })
 }

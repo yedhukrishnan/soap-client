@@ -1,12 +1,12 @@
 // Monaco setup: only the base editor worker is needed (XML uses a Monarch tokenizer).
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
+import { isDark, onThemeChange } from "./theme";
 
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
-const dark = window.matchMedia("(prefers-color-scheme: dark)");
-export const currentTheme = () => (dark.matches ? "vs-dark" : "vs");
-dark.addEventListener("change", () => monaco.editor.setTheme(currentTheme()));
+export const currentTheme = () => (isDark() ? "vs-dark" : "vs");
+onThemeChange(() => monaco.editor.setTheme(currentTheme()));
 
 /** One text model per request so each tab keeps its own undo history. */
 const models = new Map<string, monaco.editor.ITextModel>();
