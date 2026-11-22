@@ -28,7 +28,6 @@ KWallet or KeePassXC must be running; without one they are kept only until the a
 - **Checks on every send:** status, XPath, contains, no SOAP Fault and response time.
 - **Authentication:** HTTP Basic and WS-Security UsernameToken, plus custom headers.
 - **Autosave:** your work is restored when you reopen the app. Projects can be shared as `.json` files.
-- **Light and dark themes:** follows your system, or choose one under View → Appearance.
 
 <p>
   <img src="docs/screenshots/validation.png" width="49%" alt="A mistyped variable underlined in the request editor, with its warning shown on hover">
