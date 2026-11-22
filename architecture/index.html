@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOAP Client: How it's built</title>
+<meta name="description" content="The architecture of SOAP Client: a Rust core, a Tauri shell and a Svelte interface, with the reasons behind each choice.">
+<link rel="icon" href="../assets/favicon.png">
+<meta property="og:title" content="How SOAP Client is built">
+<meta property="og:description" content="Architecture, technology choices and a Rust primer for the SOAP Client desktop app.">
+<meta property="og:image" content="https://yedhu.me/soap-client/assets/screenshots/request-response.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #15181d; --fg: #e6e8eb; --muted: #8b929c; --line: #232830;
+    --green: #4ade80; --blue: #60a5fa; --amber: #f5b35b; --violet: #b49cff;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .prose { max-width: 44em; }
+  p { margin: 0; }
+  code, pre { font-family: var(--mono); }
+  :not(pre) > code { font-size: 0.82em; color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+                     border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+  pre { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+        overflow-x: auto; font-size: 13px; line-height: 1.7; color: var(--muted); }
+  pre .t { color: var(--blue); } pre .v { color: var(--fg); } pre .ok { color: var(--green); }
+
+  nav.top { display: flex; align-items: center; justify-content: space-between; height: 64px; font-family: var(--mono); font-size: 14px; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 600; }
+  .brand img { width: 24px; height: 24px; }
+  nav.top .links { display: flex; gap: 22px; }
+  nav.top .links a { color: var(--muted); text-decoration: none; }
+  nav.top .links a:hover { color: var(--fg); }
+
+  header { padding: 72px 0 40px; display: grid; gap: 18px; }
+  .tag { font-family: var(--mono); font-size: 13px; color: var(--green); }
+  h1 { font-size: clamp(34px, 5vw, 54px); line-height: 1.08; letter-spacing: -0.03em; margin: 0; }
+  h1 span { color: var(--muted); }
+  .lead { color: var(--muted); font-size: 19px; max-width: 34em; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fact { font: 12.5px var(--mono); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+
+  .toc { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 14px 0; border-block: 1px solid var(--line);
+         font: 13px var(--mono); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  .toc a { color: var(--muted); text-decoration: none; }
+  .toc a:hover { color: var(--fg); }
+
+  section { padding: 72px 0 0; display: grid; gap: 22px; scroll-margin-top: 56px; }
+  section > h2 { font: 13px var(--mono); color: var(--green); font-weight: 400; margin: 0; }
+  h3 { margin: 0; font-size: 18px; letter-spacing: -0.01em; }
+  .big { font-size: clamp(24px, 3vw, 30px); letter-spacing: -0.02em; line-height: 1.2; margin: 0; }
+
+  .shot { margin: 0; }
+  .shot img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--line); }
+  .shot figcaption { margin-top: 10px; font-size: 15px; color: var(--muted); }
+
+  /* layer diagram */
+  .layer { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 20px; display: grid; gap: 14px;
+           border-top: 2px solid var(--c); }
+  .layer.ui { --c: var(--violet); } .layer.shell { --c: var(--green); } .layer.core { --c: var(--amber); } .layer.ext { --c: var(--muted); }
+  .layer .lh { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+  .layer .lh h3 { color: var(--c); }
+  .layer .lh span { font: 12.5px var(--mono); color: var(--muted); }
+  .boxes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1px; background: var(--line);
+           border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .box { background: var(--bg); padding: 12px 14px; min-width: 0; }
+  .box b { display: block; font: 600 13px var(--mono); overflow-wrap: anywhere; }
+  .box span { display: block; font-size: 14px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
+  .link { display: grid; grid-template-columns: 1px 1fr; gap: 16px; margin-left: 32px; padding: 12px 0; }
+  .link i { background: var(--line); min-height: 36px; }
+  .link p { font-size: 14.5px; color: var(--muted); align-self: center; }
+  .link b { font: 500 13px var(--mono); color: var(--blue); }
+  .rule { border-left: 2px solid var(--green); padding: 2px 0 2px 16px; color: var(--muted); font-size: 16px; max-width: 46em; }
+  .rule strong { color: var(--fg); }
+
+  /* tables */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 14px 18px; border-top: 1px solid var(--line); }
+  thead th { border-top: 0; font: 12px var(--mono); color: var(--muted); font-weight: 400; background: var(--panel); }
+  td { color: var(--muted); }
+  td:first-child { color: var(--fg); font-weight: 600; white-space: nowrap; }
+  td.num { font: 13px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+  .l { font: 11.5px var(--mono); padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+  .l.ui { color: var(--violet); } .l.shell { color: var(--green); } .l.core { color: var(--amber); } .l.ext { color: var(--muted); }
+
+  .why { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .why details { background: var(--bg); padding: 0 22px; }
+  .why summary { cursor: pointer; padding: 18px 0; font-weight: 600; }
+  .why summary span { font: 12.5px var(--mono); color: var(--muted); font-weight: 400; margin-left: 10px; }
+  .why details p { color: var(--muted); padding-bottom: 20px; max-width: 46em; font-size: 16px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .two > * { min-width: 0; }
+  .panel { border: 1px solid var(--line); border-radius: 12px; padding: 22px; display: grid; gap: 14px; align-content: start; }
+  .panel > p { color: var(--muted); font-size: 15.5px; }
+
+  ol.flow { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+  ol.flow li { counter-increment: s; display: grid; grid-template-columns: 32px 1fr; gap: 12px; padding: 12px 0; border-top: 1px dashed var(--line); }
+  ol.flow li:first-child { border-top: 0; padding-top: 0; }
+  ol.flow li::before { content: counter(s, decimal-leading-zero); font: 13px var(--mono); color: var(--green); padding-top: 2px; }
+  ol.flow li > div { display: grid; gap: 4px; min-width: 0; }
+  ol.flow p { color: var(--muted); font-size: 15.5px; }
+  ol.flow .l { justify-self: start; }
+
+  ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 8px; color: var(--muted); font-size: 15.5px; }
+  ul.plain strong { color: var(--fg); }
+
+  .concept { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 28px; align-items: start;
+             border-top: 1px solid var(--line); padding-top: 24px; }
+  .concept > div { display: grid; gap: 8px; }
+  .concept p { color: var(--muted); font-size: 16px; }
+
+  dl.gloss { display: grid; grid-template-columns: max-content 1fr; gap: 10px 28px; margin: 0; }
+  dl.gloss dt { font: 600 13.5px var(--mono); padding-top: 3px; }
+  dl.gloss dd { margin: 0; color: var(--muted); font-size: 16px; }
+
+  footer { margin-top: 96px; border-top: 1px solid var(--line); padding: 26px 0 40px; font: 13px var(--mono); color: var(--muted); }
+  footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a { color: var(--muted); text-decoration: none; margin-left: 22px; }
+  footer a:hover { color: var(--fg); }
+
+  @media (max-width: 860px) {
+    header { padding: 40px 0 28px; }
+    .two, .concept { grid-template-columns: 1fr; }
+    .concept { gap: 14px; }
+    nav.top .links a.hide-sm { display: none; }
+    footer a { margin: 0 18px 0 0; }
+  }
+  @media (max-width: 560px) {
+    dl.gloss { grid-template-columns: 1fr; gap: 4px; }
+    dl.gloss dd { margin-bottom: 12px; }
+    .link { margin-left: 12px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <nav class="top" aria-label="Main">
+      <a class="brand" href="../"><img src="../assets/icon.svg" alt=""> soap-client</a>
+      <span class="links">
+        <a class="hide-sm" href="../#download">download</a>
+        <a href="https://github.com/yedhukrishnan/soap-client">github →</a>
+      </span>
+    </nav>
+
+    <header>
+      <p class="tag">// architecture · v0.2.3</p>
+      <h1>How it's built.<br><span>Rust inside, web on top.</span></h1>
+      <p class="lead">A tour of the architecture, the technology choices and the reasons behind them. Written for anyone who knows software but not necessarily Rust.</p>
+      <div class="facts">
+        <span class="fact">Rust 2024</span>
+        <span class="fact">Tauri 2</span>
+        <span class="fact">Svelte 5 + TypeScript</span>
+        <span class="fact">~2,400 lines core</span>
+        <span class="fact">~1,000 lines shell</span>
+        <span class="fact">~4,300 lines UI</span>
+        <span class="fact">45 Rust tests</span>
+      </div>
+    </header>
+
+    <nav class="toc" aria-label="Sections">
+      <a href="#overview">overview</a>
+      <a href="#layers">layers</a>
+      <a href="#stack">stack</a>
+      <a href="#flows">flows</a>
+      <a href="#core">core</a>
+      <a href="#security">security</a>
+      <a href="#storage">storage</a>
+      <a href="#release">release</a>
+      <a href="#rust">rust primer</a>
+      <a href="#change">changes</a>
+      <a href="#glossary">glossary</a>
+    </nav>
+
+    <section id="overview">
+      <h2>// overview</h2>
+      <div class="prose" style="display:grid;gap:14px">
+        <p class="big">Import a WSDL, get a request for every operation, send it, check the response.</p>
+        <p style="color:var(--muted)">A <strong style="color:var(--fg)">WSDL</strong> is the XML file that describes a SOAP service. SOAP Client reads it, along with every schema it imports, and writes a ready-to-edit sample request for each operation. You fill in values, press Send, and the response comes back with automatic checks: status code, XPath, no SOAP Fault, response time. Around that loop sit environments and <code>{{variables}}</code>, HTTP Basic and WS-Security, secrets in the system keychain, autosave and shareable project files.</p>
+      </div>
+      <figure class="shot">
+        <img src="../assets/screenshots/request-response.jpg" width="1800" height="1089" loading="lazy"
+             alt="SOAP Client showing a request and its response, with all assertions passing">
+        <figcaption>Imported services in the sidebar, the request editor, and the response with its checks.</figcaption>
+      </figure>
+    </section>
+
+    <section id="layers">
+      <h2>// three layers in one app</h2>
+      <p class="prose" style="color:var(--muted)">The app is one native program with a web page inside it. The page draws the interface; Rust does everything that touches the network, the disk or the keychain. They talk over Tauri's IPC bridge, which works like calling a local API. The Rust half is split again: a thin <em>shell</em> that knows about Tauri, and a <em>core</em> library that knows nothing about any UI.</p>
+
+      <div role="img" aria-label="Layer diagram: the Svelte interface talks over IPC to the Tauri shell, which calls the soap-core library, which talks to SOAP endpoints, WSDL hosts, the disk and the system keychain.">
+        <div class="layer ui">
+          <div class="lh"><h3>Interface · Svelte 5 in the system webview</h3><span>ui/src/</span></div>
+          <div class="boxes">
+            <div class="box"><b>App.svelte</b><span>Window layout, resizable panes, menu events, autosave</span></div>
+            <div class="box"><b>components/*</b><span>Sidebar, request and response panes, auth, headers, assertions, dialogs</span></div>
+            <div class="box"><b>XmlEditor · monaco.ts</b><span>VS Code's editor, one model per tab for separate undo</span></div>
+            <div class="box"><b>lib/state.svelte.ts</b><span>All app state: project, tabs, environments, dirty flag</span></div>
+            <div class="box"><b>lib/api.ts · types.ts</b><span>Typed wrappers for every backend command</span></div>
+          </div>
+        </div>
+        <div class="link"><i></i><p><b>invoke("send_request", …)</b> JSON in, JSON out, plus events from Rust to the page. Guarded by a strict CSP and a capability list.</p></div>
+        <div class="layer shell">
+          <div class="lh"><h3>Shell · Tauri 2 application</h3><span>src-tauri/src/</span></div>
+          <div class="boxes">
+            <div class="box"><b>lib.rs</b><span>Starts Tauri; registers plugins, state and 18 commands</span></div>
+            <div class="box"><b>commands.rs</b><span>Validates input, resolves variables, handles cancel</span></div>
+            <div class="box"><b>secrets.rs</b><span>Owns the keychain. Set, delete, check; never returns a value</span></div>
+            <div class="box"><b>menu.rs</b><span>Native menu bar, forwarded to the UI as events</span></div>
+            <div class="box"><b>updates.rs</b><span>Daily update check, skip version, open releases</span></div>
+          </div>
+        </div>
+        <div class="link"><i></i><p>Plain Rust calls: <b>soap_core::http::send(&amp;spec)</b>, <b>project::import_wsdl(src)</b>.</p></div>
+        <div class="layer core">
+          <div class="lh"><h3>Core · soap-core library</h3><span>crates/soap-core/src/</span></div>
+          <div class="boxes">
+            <div class="box"><b>wsdl/loader · parser</b><span>Fetch a WSDL and its imports; turn it into interfaces and operations</span></div>
+            <div class="box"><b>xsd/sample</b><span>Walk the schemas, write a sample envelope with <code>?</code> placeholders</span></div>
+            <div class="box"><b>http · envelope</b><span>Headers, Basic auth, WS-Security, send, mask secrets</span></div>
+            <div class="box"><b>vars</b><span>Find and replace <code>{{name}}</code>, XML-escaped in the body</span></div>
+            <div class="box"><b>assertions</b><span>Status, contains, XPath, no SOAP Fault, max time</span></div>
+            <div class="box"><b>project · session · update</b><span>JSON files, atomic private writes, version check</span></div>
+          </div>
+        </div>
+        <div class="link"><i></i><p><b>HTTPS (rustls)</b>, files on disk, and the system credential store.</p></div>
+        <div class="layer ext">
+          <div class="lh"><h3>Outside the app</h3><span>operating system and network</span></div>
+          <div class="boxes">
+            <div class="box"><b>SOAP endpoints</b><span>The services you test</span></div>
+            <div class="box"><b>WSDL / XSD hosts</b><span>Where service descriptions come from</span></div>
+            <div class="box"><b>macOS Keychain</b><span>Touch ID protected in signed builds</span></div>
+            <div class="box"><b>Secret Service</b><span>GNOME Keyring, KWallet, KeePassXC</span></div>
+            <div class="box"><b>App data folder</b><span>session.json, secret-index.json, updates.json</span></div>
+            <div class="box"><b>latest.json</b><span>Static file on this site naming the newest version</span></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="rule">The one rule that shapes everything: <strong>the project lives in the UI, the secrets live in Rust.</strong> The UI holds and edits the project as plain data and asks Rust to do work on it. Secret values go into the keychain through Rust and never come back out to the page.</p>
+    </section>
+
+    <section id="stack">
+      <h2>// technologies and why</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>piece</th><th>layer</th><th>used for</th><th>why this one</th></tr></thead>
+          <tbody>
+            <tr><td>Rust</td><td><span class="l core">core</span> <span class="l shell">shell</span></td><td>All logic that isn't drawing the UI</td><td>A small, fast native binary with no runtime to install. The compiler rules out null errors, data races and memory bugs, which matters for code that parses untrusted XML.</td></tr>
+            <tr><td>Tauri 2</td><td><span class="l shell">shell</span></td><td>Window, menus, dialogs, IPC, packaging</td><td>Uses the webview the OS already has instead of bundling Chromium like Electron, so the download is 18 MB, not 100+. The page can only call what it's explicitly allowed to.</td></tr>
+            <tr><td>Svelte 5</td><td><span class="l ui">ui</span></td><td>The interface</td><td>Compiles to plain JavaScript with no virtual DOM. Runes (<code>$state</code>, <code>$effect</code>) make one shared state object reactive.</td></tr>
+            <tr><td>TypeScript</td><td><span class="l ui">ui</span></td><td>All UI code</td><td><code>types.ts</code> mirrors the Rust structs, so a mismatched command is caught at build time.</td></tr>
+            <tr><td>Vite</td><td><span class="l ui">ui</span></td><td>Dev server, bundler</td><td>Tauri's recommended tool. Hot reload during development; targets Safari 16 to match the macOS webview.</td></tr>
+            <tr><td>Monaco</td><td><span class="l ui">ui</span></td><td>XML editing</td><td>VS Code's editor: highlighting, folding, find, per-tab undo. Only the base worker is loaded.</td></tr>
+            <tr><td>roxmltree</td><td><span class="l core">core</span></td><td>Reading WSDL and XSD</td><td>Fast read-only XML tree with correct namespace handling. Reading is all that's needed.</td></tr>
+            <tr><td>quick-xml</td><td><span class="l core">core</span></td><td>Pretty-printing</td><td>Streaming reader and writer, reformats a response without building a tree.</td></tr>
+            <tr><td>sxd-xpath</td><td><span class="l core">core</span></td><td>XPath assertions</td><td>One of the few pure-Rust XPath 1.0 implementations.</td></tr>
+            <tr><td>reqwest + rustls</td><td><span class="l core">core</span></td><td>HTTP</td><td>The standard Rust HTTP client, with TLS written in Rust instead of OpenSSL, so it behaves the same everywhere. HTTP/2, gzip and system proxy enabled.</td></tr>
+            <tr><td>tokio</td><td><span class="l core">core</span> <span class="l shell">shell</span></td><td>Async runtime</td><td>A slow request never freezes the window, and <code>tokio::select!</code> makes Cancel possible.</td></tr>
+            <tr><td>serde</td><td><span class="l core">core</span> <span class="l shell">shell</span></td><td>JSON</td><td>One <code>#[derive]</code> line converts a struct to and from JSON, for IPC and every file.</td></tr>
+            <tr><td>keyring</td><td><span class="l shell">shell</span></td><td>Secret storage</td><td>One API over the macOS Keychain and Linux Secret Service. The Apple store adds the Touch ID policy.</td></tr>
+            <tr><td>sha1, base64, chrono, rand</td><td><span class="l core">core</span></td><td>WS-Security</td><td>PasswordDigest is <code>Base64(SHA-1(nonce + created + password))</code>, as the OASIS spec defines.</td></tr>
+            <tr><td>wiremock</td><td><span class="l ext">tests</span></td><td>Integration tests</td><td>A fake HTTP server, so sending, redirects and imports are tested offline.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="why">
+        <details open>
+          <summary>Why split Rust into a core and a shell?<span>testability</span></summary>
+          <p>A Cargo <em>workspace</em> holds two crates. <code>soap-core</code> has no UI or Tauri dependency, so <code>cargo test</code> runs every WSDL, HTTP and assertion test without opening a window. <code>src-tauri</code> is the app; its commands are mostly one-liners into the core. A different front end, such as a command-line tool, could reuse the core unchanged.</p>
+        </details>
+        <details>
+          <summary>Why Tauri and not Electron?<span>size and security</span></summary>
+          <p>Electron ships Chromium and Node.js in every app. Tauri uses the system webview and a Rust backend, so downloads are small and memory use is low. The page has no direct file or network access: it can only call the commands registered in <code>lib.rs</code> and the permissions in <code>capabilities/default.json</code>. The cost is that webviews differ by OS (WebKit on macOS, WebKitGTK on Linux), so Linux packages are install-tested on clean systems.</p>
+        </details>
+        <details>
+          <summary>Why does the interface own the project?<span>simplicity</span></summary>
+          <p>Editing is constant, and keeping that state in Rust would mean an IPC round trip per keystroke. Instead the UI holds the project and sends a snapshot to save 700 ms after the last change. Rust keeps only three pieces of state: requests it may need to cancel, the secret store, and a lock for update preferences.</p>
+        </details>
+        <details>
+          <summary>Why one keychain item per project?<span>fewer prompts</span></summary>
+          <p>Every keychain read can make macOS ask for permission or Touch ID. So all of a project's secrets share one JSON "vault" item, read once and kept in memory until unused for 15 minutes. "Is this secret set?" is answered from a file that lists only key names, which never prompts.</p>
+        </details>
+      </div>
+    </section>
+
+    <section id="flows">
+      <h2>// how things flow</h2>
+      <div class="two">
+        <div class="panel">
+          <h3>Importing a WSDL</h3>
+          <ol class="flow">
+            <li><div><span class="l ui">ui</span><p>The import dialog takes a URL or file and calls <code>api.importWsdl(source)</code>.</p></div></li>
+            <li><div><span class="l shell">shell</span><p><code>import_wsdl</code> hands it to <code>soap_core::project::import_wsdl</code>.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>wsdl/loader.rs</code> fetches it and follows every <code>wsdl:import</code>, <code>xsd:import</code>, <code>include</code> and <code>redefine</code>, resolving relative paths against the final URL after redirects. Up to 250 documents of 20 MB each.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>wsdl/parser.rs</code> indexes all schema types, then flattens bindings, port types and services into interfaces with operations and endpoints.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>xsd/sample.rs</code> writes a sample envelope for each operation, reusing the WSDL author's prefixes and guarding against recursive types.</p></div></li>
+            <li><div><span class="l ui">ui</span><p>The result, including the text of every imported document, is stored in the project, so it works offline afterwards.</p></div></li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>Sending a request</h3>
+          <ol class="flow">
+            <li><div><span class="l ui">ui</span><p>Send collects the request and the active environment's variables. Secrets are passed as a keychain key, not a value.</p></div></li>
+            <li><div><span class="l shell">shell</span><p><code>send_request</code> finds which <code>{{names}}</code> are used and reads only those secrets.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>vars::resolve_spec</code> substitutes them. Any undefined variable stops the send and is named, so nothing half-filled goes out.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>http::prepare</code> adds SOAP 1.1 or 1.2 headers and Basic auth or WS-Security; your own headers win.</p></div></li>
+            <li><div><span class="l core">core</span><p><code>http::send</code> posts it. Cancel races it with <code>tokio::select!</code>.</p></div></li>
+            <li><div><span class="l core">core</span><p>The response returns with timing, size, a pretty-printed body and a copy of the request with secrets shown as <code>••••••</code>.</p></div></li>
+            <li><div><span class="l ui">ui</span><p><code>run_assertions</code> checks it and the results appear beside the response.</p></div></li>
+          </ol>
+        </div>
+      </div>
+<pre aria-label="Sequence of calls when sending a request"><span class="t">Svelte UI</span>     ── send_request(callId, spec, vars) ──▶  <span class="t">commands.rs</span>
+<span class="t">commands.rs</span>   ── get(secret keys in use) ───────────▶  <span class="t">secrets.rs</span>
+<span class="t">secrets.rs</span>    ◀── values (they stay in Rust) ─────────
+<span class="t">commands.rs</span>   ── resolve_spec + http::send ─────────▶  <span class="t">soap-core</span>
+<span class="t">soap-core</span>     ── POST envelope ─────────────────────▶  <span class="t">SOAP server</span>
+<span class="t">soap-core</span>     ◀── <span class="v">200 OK</span> · 408 ms ─────────────────────
+<span class="t">Svelte UI</span>     ◀── ResponseData (secrets masked) ──────
+<span class="t">Svelte UI</span>     ── run_assertions(list, response) ────▶  <span class="t">commands.rs</span>
+<span class="ok">✓ 4/4 assertions passed</span></pre>
+    </section>
+
+    <section id="core">
+      <h2>// the rust core, file by file</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>file</th><th style="text-align:right">lines</th><th>responsibility</th></tr></thead>
+          <tbody>
+            <tr><td>xsd/sample.rs</td><td class="num">413</td><td>Sample XML from schema types: sequences, choices, attributes, extensions, groups; recursion guard at depth 40.</td></tr>
+            <tr><td>http.rs</td><td class="num">305</td><td>Request spec, auth, <code>prepare</code> (pure, easy to test), <code>send</code>, secret masking, redirect rules, 100 MB response cap.</td></tr>
+            <tr><td>wsdl/parser.rs</td><td class="num">297</td><td>WSDL 1.1 into <code>WsdlDocument → Interface → Operation</code>. Document and RPC style; a clear error for WSDL 2.0.</td></tr>
+            <tr><td>assertions.rs</td><td class="num">222</td><td>The <code>Check</code> enum and <code>evaluate</code>. XPath can use any prefix in the response plus <code>soap11</code>/<code>soap12</code>.</td></tr>
+            <tr><td>update.rs</td><td class="num">211</td><td>Version comparison, security-release flag, preferences file.</td></tr>
+            <tr><td>envelope.rs</td><td class="num">195</td><td>SOAP version detection; inserts <code>wsse:Security</code> as a text edit so your formatting is kept.</td></tr>
+            <tr><td>project.rs</td><td class="num">186</td><td>Project file format, import entry point, atomic writes via temp file and rename, 0600 permissions.</td></tr>
+            <tr><td>wsdl/loader.rs</td><td class="num">183</td><td>Recursive import loader for files and URLs, with the security rules below.</td></tr>
+            <tr><td>vars.rs</td><td class="num">168</td><td><code>{{ name }}</code> scanning, substitution, list of values to mask.</td></tr>
+            <tr><td>xsd/mod.rs</td><td class="num">85</td><td><code>SchemaIndex</code>: global elements and types by qualified name.</td></tr>
+            <tr><td>wsdl/model.rs</td><td class="num">62</td><td>The data shapes sent to the UI.</td></tr>
+            <tr><td>error · session · xml_fmt</td><td class="num">156</td><td>Error enum, autosave file, pretty-printer.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose" style="color:var(--muted);font-size:16px">Unit tests sit in <code>#[cfg(test)]</code> blocks at the bottom of source files. Integration tests in <code>crates/soap-core/tests/</code> run against WSDL fixtures: a calculator, an RPC service, a complex schema, and a multi-file WSDL with nested imports and a deliberately broken one.</p>
+    </section>
+
+    <section id="security">
+      <h2>// what it defends against</h2>
+      <div class="two">
+        <div class="panel">
+          <h3>Keeping secrets secret</h3>
+          <ul class="plain">
+            <li>Secret values are never in project files, the session file or the UI. The UI can set, delete and ask "is it set?", nothing more.</li>
+            <li>Wherever a sent request or an error is shown, secret values and their XML-escaped forms become <code>••••••</code>.</li>
+            <li>Signed macOS builds require Touch ID or the Mac password to read secrets, and lock again after 15 idle minutes.</li>
+            <li>A project file that isn't known to be yours must ask before it can use stored secrets.</li>
+            <li>With no keyring available, secrets are kept in memory only, until quit.</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <h3>Not trusting the network or the page</h3>
+          <ul class="plain">
+            <li>SOAP requests follow redirects only to the same scheme, host and port, so headers and bodies can't leak elsewhere.</li>
+            <li>WSDL downloads may redirect, but never from https to http.</li>
+            <li>A WSDL from the web can't import <code>file://</code> paths, and every import must be a schema or WSDL.</li>
+            <li>No <code>Referer</code> header, since URLs can hold secret variables.</li>
+            <li>Size limits on documents, import count and responses.</li>
+            <li>Save and open accept only absolute <code>.json</code> paths.</li>
+            <li>A strict Content Security Policy: the page loads only its own scripts and talks only to the IPC bridge.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="storage">
+      <h2>// where data lives</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>what</th><th>where</th><th>contents</th></tr></thead>
+          <tbody>
+            <tr><td>Project file</td><td>Wherever you save it, <code>*.json</code></td><td>WSDLs with imported documents, requests, variables, environments. Secrets have a name but no value. Safe to share.</td></tr>
+            <tr><td>session.json</td><td>App data folder</td><td>Autosave of the project, open tabs and selection.</td></tr>
+            <tr><td>secret-index.json</td><td>App data folder</td><td>Names of keys that have a stored secret. No values.</td></tr>
+            <tr><td>updates.json</td><td>App data folder</td><td>Last check, auto-check setting, skipped version.</td></tr>
+            <tr><td>Keychain vault</td><td>Service <code>dev.soapclient.app</code></td><td>One item per project holding its secrets.</td></tr>
+            <tr><td>localStorage</td><td>Inside the webview</td><td>Pane sizes, recent files, collapsed tree nodes, trusted project paths.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose" style="color:var(--muted);font-size:16px">The app data folder is <code>~/Library/Application Support/dev.soapclient.app/</code> on macOS and <code>~/.local/share/dev.soapclient.app/</code> on Linux.</p>
+    </section>
+
+    <section id="release">
+      <h2>// from source to installers</h2>
+      <div class="two">
+        <div class="panel">
+          <h3>Day to day</h3>
+<pre><span class="v">npm install</span>
+<span class="v">npm run tauri dev</span>    # Vite on :1420 + the Rust app
+<span class="v">cargo test</span>           # Rust tests
+<span class="v">npm run check</span>        # TypeScript and Svelte types
+<span class="v">npm run tauri build</span>  # installers in target/release/bundle/</pre>
+          <p>In development the app loads the UI from Vite with hot reload. In a release build the compiled UI is embedded in the binary.</p>
+        </div>
+        <div class="panel">
+          <h3>Releases</h3>
+          <ul class="plain">
+            <li><strong>macOS:</strong> one universal binary for Apple Silicon and Intel, signed with a Developer ID, notarized and stapled, checked by Gatekeeper, packed in a <code>.dmg</code>.</li>
+            <li><strong>Linux:</strong> GitHub Actions builds <code>.deb</code> for amd64 and arm64 in an Ubuntu 22.04 container on every version tag, repackages it for Arch, and install-tests each on a clean system.</li>
+            <li><strong>Versions:</strong> CI refuses a tag that doesn't match all four version fields.</li>
+            <li><strong>Updates:</strong> the app reads <a href="../latest.json"><code>latest.json</code></a> from this site once a day. Nothing about you is sent.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="rust">
+      <h2>// reading the code without knowing rust</h2>
+      <p class="prose" style="color:var(--muted)">These eight ideas cover nearly every line of the project, each shown with real code from it.</p>
+
+      <div class="concept">
+        <div><h3>Crates, Cargo and the workspace</h3><p>A <em>crate</em> is a package. <em>Cargo</em> is Rust's npm: <code>Cargo.toml</code> is the <code>package.json</code>, crates.io the registry. A workspace groups crates that build together.</p></div>
+<pre># Cargo.toml
+[workspace]
+members = [<span class="v">"crates/soap-core"</span>, <span class="v">"src-tauri"</span>]
+
+# src-tauri/Cargo.toml
+soap-core = { path = <span class="v">"../crates/soap-core"</span> }</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Structs and derive</h3><p>A <code>struct</code> is like a TypeScript interface that holds data. <code>#[derive(Serialize, Deserialize)]</code> generates JSON conversion; <code>rename_all = "camelCase"</code> turns <code>soap_action</code> into <code>soapAction</code> to match the TypeScript side.</p></div>
+<pre><span class="t">#[derive(Serialize, Deserialize)]</span>
+<span class="t">#[serde(rename_all = "camelCase")]</span>
+pub struct <span class="v">RequestSpec</span> {
+    pub endpoint: String,
+    pub soap_version: SoapVersion,
+    <span class="t">#[serde(default)]</span>
+    pub soap_action: Option&lt;String&gt;,
+    pub body: String,
+}</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Enums carry data</h3><p>Like TypeScript discriminated unions: each variant has its own fields. <code>match</code> handles every variant, and the compiler errors if one is missing.</p></div>
+<pre><span class="t">#[serde(tag = "kind")]</span>
+pub enum <span class="v">Auth</span> {
+    None,
+    Basic { username: String, password: String },
+    WsSecurity(WsSecurity),
+}
+
+match &amp;spec.auth {
+    Auth::None =&gt; {}
+    Auth::Basic { username, password } =&gt; { /* header */ }
+    Auth::WsSecurity(sec) =&gt; body = apply_ws_security(&amp;body, sec)?,
+}</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Option and Result</h3><p>No <code>null</code>: a value that may be missing is <code>Option&lt;T&gt;</code>, either <code>Some(x)</code> or <code>None</code>. No exceptions: a fallible function returns <code>Result&lt;T, E&gt;</code>, either <code>Ok</code> or <code>Err</code>. A trailing <code>?</code> means "if this failed, return the error now".</p></div>
+<pre>pub fn <span class="v">save_project</span>(path: PathBuf, project: Project)
+    -&gt; Result&lt;(), String&gt;
+{
+    let path = project_path(path)<span class="v">?</span>;   // bail unless .json
+    project::save(&amp;project, &amp;path)
+        .map_err(|e| e.to_string())
+}</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Ownership and <code>&amp;</code></h3><p>Every value has one owner and is freed when the owner goes away; that's how Rust manages memory without a garbage collector. <code>&amp;x</code> lends a value, <code>&amp;mut x</code> lends it for changing, <code>.clone()</code> copies it. <code>&amp;str</code> is borrowed text, <code>String</code> is owned text.</p></div>
+<pre>// borrows spec, doesn't take it
+pub fn <span class="v">prepare</span>(spec: <span class="v">&amp;</span>RequestSpec) -&gt; Result&lt;PreparedRequest&gt; {
+    let mut body = spec.body.clone();  // own copy to edit
+    ...
+}</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>async and tokio</h3><p><code>async</code> and <code>.await</code> work as in JavaScript, but Rust needs a runtime to run them: tokio. <code>tokio::select!</code> waits on several futures and takes the first to finish. That's the whole Cancel feature.</p></div>
+<pre>let result = <span class="v">tokio::select!</span> {
+    r = soap_core::http::send(&amp;spec, &amp;masked) =&gt; r,
+    _ = rx =&gt; Err(<span class="v">"Request cancelled"</span>.to_string()),
+};</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Tauri commands</h3><p><code>#[tauri::command]</code> makes a function callable from JavaScript, with arguments decoded from JSON. <code>State&lt;'_, T&gt;</code> arguments are injected by Tauri. Each command is also listed in <code>generate_handler!</code>.</p></div>
+<pre>// Rust
+<span class="t">#[tauri::command]</span>
+pub fn <span class="v">format_xml</span>(xml: String) -&gt; Option&lt;String&gt; {
+    soap_core::xml_fmt::pretty_print(&amp;xml)
+}
+
+// TypeScript, ui/src/lib/api.ts
+formatXml: (xml: string) =&gt;
+  invoke&lt;string | null&gt;(<span class="v">"format_xml"</span>, { xml }),</pre>
+      </div>
+
+      <div class="concept">
+        <div><h3>Small things you'll see</h3><p><code>pub</code> is public. <code>mod x;</code> includes <code>x.rs</code>. <code>use</code> is import. <code>#[cfg(target_os = "macos")]</code> compiles code only on macOS. <code>Mutex</code> guards shared data across threads. <code>|x| …</code> is a closure. <code>'a</code> is a <em>lifetime</em>, telling the compiler how long a borrow lasts; you can mostly skip it when reading.</p></div>
+<pre><span class="t">#[cfg(target_os = "macos")]</span>
+apple-native-keyring-store = { … }
+
+<span class="t">#[derive(Default)]</span>
+pub struct <span class="v">InFlight</span>(
+    Mutex&lt;HashMap&lt;String, oneshot::Sender&lt;()&gt;&gt;&gt;
+);</pre>
+      </div>
+    </section>
+
+    <section id="change">
+      <h2>// making changes</h2>
+      <div class="two">
+        <div class="panel">
+          <h3>A reading order</h3>
+          <ol class="flow">
+            <li><div><p><code>ui/src/lib/types.ts</code>: every data shape in one file.</p></div></li>
+            <li><div><p><code>ui/src/lib/api.ts</code>: everything the UI can ask Rust to do.</p></div></li>
+            <li><div><p><code>src-tauri/src/commands.rs</code>: what each of those does, in about 190 lines.</p></div></li>
+            <li><div><p><code>crates/soap-core/src/http.rs</code>: the heart of sending a request.</p></div></li>
+            <li><div><p><code>ui/src/lib/state.svelte.ts</code>: how the UI holds and changes the project.</p></div></li>
+          </ol>
+        </div>
+        <div class="panel">
+          <h3>Example: a new assertion type</h3>
+          <ol class="flow">
+            <li><div><span class="l core">core</span><p>Add a variant to <code>Check</code> in <code>assertions.rs</code>.</p></div></li>
+            <li><div><span class="l core">core</span><p>Handle it in <code>evaluate</code>; the compiler points at the <code>match</code> until you do.</p></div></li>
+            <li><div><span class="l core">core</span><p>Add a test beside it and run <code>cargo test</code>.</p></div></li>
+            <li><div><span class="l ui">ui</span><p>Add the same shape to <code>Check</code> in <code>types.ts</code>.</p></div></li>
+            <li><div><span class="l ui">ui</span><p>Add its fields to <code>AssertionsEditor.svelte</code> and run <code>npm run check</code>.</p></div></li>
+          </ol>
+          <p>No new command is needed, because <code>run_assertions</code> passes the whole list through. New backend work means a command in <code>commands.rs</code>, registered in <code>lib.rs</code>, with a wrapper in <code>api.ts</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="glossary">
+      <h2>// glossary</h2>
+      <dl class="gloss">
+        <dt>SOAP</dt><dd>An XML protocol for calling remote services. Each message is an Envelope with an optional Header and a Body. Versions 1.1 and 1.2 differ mainly in namespace and content type.</dd>
+        <dt>WSDL</dt><dd>An XML file listing a service's operations, message formats, bindings and addresses. SOAP Client supports WSDL 1.1.</dd>
+        <dt>XSD</dt><dd>XML Schema: defines what elements and types look like. WSDLs embed or import schemas.</dd>
+        <dt>Binding / port</dt><dd>A binding ties operations to SOAP specifics; a port gives it an address. The app shows one interface per binding.</dd>
+        <dt>Document / RPC</dt><dd>Two body layouts: one schema element, or a wrapper named after the operation.</dd>
+        <dt>SOAP Fault</dt><dd>The standard error element a service returns when a call fails.</dd>
+        <dt>WS-Security</dt><dd>An OASIS standard for credentials in the SOAP Header; here, UsernameToken with text or digest passwords.</dd>
+        <dt>XPath</dt><dd>A query language for picking parts of an XML document.</dd>
+        <dt>IPC</dt><dd>How the page inside the app calls Rust and receives events.</dd>
+        <dt>Webview</dt><dd>A browser engine embedded in a window, without the browser around it.</dd>
+        <dt>CSP</dt><dd>Content Security Policy: what a page may load or connect to.</dd>
+        <dt>Notarization</dt><dd>Apple scanning a signed app so macOS opens it without a warning.</dd>
+        <dt>Secret Service</dt><dd>The freedesktop.org API that Linux keyrings implement.</dd>
+      </dl>
+    </section>
+  </div>
+
+  <footer>
+    <div class="wrap">
+      <span>© 2026 Yedhu Krishnan · MIT</span>
+      <span>
+        <a href="../">home</a>
+        <a href="https://github.com/yedhukrishnan/soap-client">github</a>
+        <a href="https://github.com/yedhukrishnan/soap-client/issues">issues</a>
+        <a href="https://yedhu.me">yedhu.me</a>
+      </span>
+    </div>
+  </footer>
+</body>
+</html>
