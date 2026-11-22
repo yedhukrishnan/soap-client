@@ -22,11 +22,13 @@ KWallet or KeePassXC must be running; without one they are kept only until the a
 
 - **Import a WSDL** from a link or a file, including the schemas it imports. Works offline afterwards.
 - **Ready-made requests** for every operation, generated from the schemas. SOAP 1.1 and 1.2.
-- **Environments and variables:** use `{{name}}` anywhere in a request and switch servers or credentials in one click.
+- **Checked against the WSDL as you type:** missing or misplaced elements, wrong namespaces, values that don't fit their type, and a mismatched SOAP version or SOAPAction are underlined in the editor. These are only warnings and can be turned off; only malformed XML stops a request from being sent.
+- **Environments and variables:** use `{{name}}` anywhere in a request and switch servers or credentials in one click. Mistyped placeholders such as `{{password}` are flagged.
 - **Secrets stay private:** stored in the macOS Keychain (unlocked with Touch ID) or the Linux keyring, never in project files.
 - **Checks on every send:** status, XPath, contains, no SOAP Fault and response time.
 - **Authentication:** HTTP Basic and WS-Security UsernameToken, plus custom headers.
 - **Autosave:** your work is restored when you reopen the app. Projects can be shared as `.json` files.
+- **Light and dark themes:** follows your system, or choose one under View → Appearance.
 
 <p>
   <img src="docs/screenshots/environments.png" width="32%" alt="The Variables & Environments dialog">
