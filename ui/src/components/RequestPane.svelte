@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { api } from "../lib/api";
   import { findLiteralSecrets, replaceLiteralSecret } from "../lib/secrets";
   import { shortcut } from "../lib/platform";
   import { app, isHttpUrl } from "../lib/state.svelte";
-  import type { SavedRequest } from "../lib/types";
+  import type { Issue, SavedRequest, ValidationTarget } from "../lib/types";
   import AssertionsEditor from "./AssertionsEditor.svelte";
   import AuthEditor from "./AuthEditor.svelte";
   import HeadersEditor from "./HeadersEditor.svelte";
@@ -12,6 +13,62 @@
   let { req }: { req: SavedRequest } = $props();
   let tab = $state<"body" | "auth" | "headers" | "assertions">("body");
   let note = $state("");
+  let editor = $state<ReturnType<typeof XmlEditor>>();
+
+  // ---- validation (syntax always; WSDL conformance when enabled) ----
+  let issues = $state<Issue[]>([]);
+  /** The body text `issues` were computed for, and which request it belongs to. */
+  let checked = $state<{ id: string; body: string } | null>(null);
+  let issuesOpen = $state(false);
+  let seq = 0;
+
+  const syntaxError = $derived(issues.find((i) => i.severity === "error"));
+  const warnings = $derived(issues.filter((i) => i.severity === "warning"));
+  /** Issues with a position first, in document order. */
+  const sortedIssues = $derived(
+    [...issues].sort((a, b) => (a.start ?? -1) - (b.start ?? -1)),
+  );
+
+  $effect(() => {
+    const id = req.id;
+    const body = req.spec.body;
+    const src = app.specCheck ? source : null;
+    const target: ValidationTarget | null = src
+      ? {
+          wsdlText: src.wsdl.text,
+          imports: src.wsdl.imports ?? [],
+          bindingVersion: src.iface.soapVersion,
+          operation: src.op,
+          soapVersion: req.spec.soapVersion,
+          soapAction: req.spec.soapAction,
+        }
+      : null;
+    const varNames = [...app.effectiveVars.keys()];
+    // Untracked: the result below writes `checked`, which must not re-run this effect.
+    if (untrack(() => checked && checked.id !== id)) {
+      issues = [];
+      checked = null;
+    }
+    const n = ++seq;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.validateRequest(body, $state.snapshot(target), varNames);
+        if (n === seq) {
+          issues = result;
+          checked = { id, body };
+        }
+      } catch {
+        if (n === seq) issues = [];
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  });
+
+  function goTo(i: Issue) {
+    if (i.start == null || i.end == null) return;
+    tab = "body";
+    editor?.reveal(i.start, i.end);
+  }
 
   const run = $derived(app.runs[req.id]);
   const source = $derived(app.operationOf(req));
@@ -111,7 +168,12 @@
   {/if}
 
   <div class="subtabs">
-    <button class:on={tab === "body"} onclick={() => (tab = "body")}>Body</button>
+    <button class:on={tab === "body"} onclick={() => (tab = "body")}>
+      Body{#if syntaxError}<span class="n err" title="Not well-formed XML">!</span>{:else if warnings.length}<span
+          class="n warn"
+          title="{warnings.length} warning(s)">{warnings.length}</span
+        >{/if}
+    </button>
     <button class:on={tab === "auth"} onclick={() => (tab = "auth")}>
       Auth{#if req.spec.auth.kind !== "none"}<span class="pip"></span>{/if}
     </button>
@@ -124,6 +186,10 @@
     <span class="spacer"></span>
     {#if tab === "body"}
       {#if note}<span class="note">{note}</span>{/if}
+      <label class="tool check" title="Check the request against the WSDL while you edit (requests are sent either way)">
+        <input type="checkbox" checked={app.specCheck} onchange={(e) => app.setSpecCheck(e.currentTarget.checked)} />
+        Validate
+      </label>
       <button class="tool" onclick={format} title="Pretty-print the XML">Format</button>
       <button class="tool" onclick={resetToSample} title="Replace the body with the generated sample">Reset to sample</button>
     {/if}
@@ -137,17 +203,47 @@
   {/if}
 
   <div class="content">
-    <div class="fill" class:hidden={tab !== "body"}>
-      <XmlEditor
-        value={req.spec.body}
-        modelKey={req.id}
-        onChange={(v) => {
-          req.spec.body = v;
-          app.markDirty();
-        }}
-        onSend={() => app.send(req.id)}
-        vars={app.effectiveVars}
-      />
+    <div class="fill body" class:hidden={tab !== "body"}>
+      <div class="editor-wrap">
+        <XmlEditor
+          bind:this={editor}
+          value={req.spec.body}
+          modelKey={req.id}
+          onChange={(v) => {
+            req.spec.body = v;
+            app.markDirty();
+          }}
+          onSend={() => app.send(req.id)}
+          vars={app.effectiveVars}
+          issues={checked?.id === req.id ? issues : []}
+          issuesFor={checked?.id === req.id ? checked.body : undefined}
+        />
+      </div>
+      {#if issues.length}
+        <div class="issues" class:open={issuesOpen}>
+          <button class="summary" class:err={!!syntaxError} onclick={() => (issuesOpen = !issuesOpen)}>
+            <span class="caret">{issuesOpen ? "▾" : "▸"}</span>
+            {#if syntaxError}
+              ✕ Not well-formed XML: this request can't be sent until it is fixed
+            {:else}
+              ⚠ {warnings.length} {warnings.length === 1 ? "warning" : "warnings"}
+              <span class="hint">(the request can still be sent)</span>
+            {/if}
+          </button>
+          {#if issuesOpen}
+            <ul>
+              {#each sortedIssues as i, k (k)}
+                <li>
+                  <button class:err={i.severity === "error"} disabled={i.start == null} onclick={() => goTo(i)}>
+                    <span class="icon">{i.severity === "error" ? "✕" : "⚠"}</span>
+                    <span class="msg">{i.message}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
     </div>
     {#if tab === "auth"}
       <AuthEditor {req} />
@@ -293,7 +389,91 @@
     min-height: 0;
   }
   .hidden {
-    display: none;
+    display: none !important;
+  }
+  .fill.body {
+    display: flex;
+    flex-direction: column;
+  }
+  .editor-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+  .n.warn {
+    background: color-mix(in srgb, var(--warn) 22%, transparent);
+    color: var(--warn);
+  }
+  .n.err {
+    background: color-mix(in srgb, var(--danger) 22%, transparent);
+    color: var(--danger);
+    font-weight: 700;
+  }
+  .tool.check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: default;
+  }
+  .tool.check input {
+    margin: 0;
+  }
+  .issues {
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .issues .summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    padding: 4px 10px;
+    color: var(--warn);
+  }
+  .issues .summary.err {
+    color: var(--danger);
+  }
+  .issues .summary:hover {
+    background: var(--hover);
+  }
+  .caret {
+    width: 10px;
+    color: var(--muted);
+  }
+  .hint {
+    color: var(--muted);
+  }
+  .issues ul {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 4px;
+    max-height: 140px;
+    overflow: auto;
+  }
+  .issues li button {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+    text-align: left;
+    padding: 2px 10px 2px 26px;
+    color: var(--fg);
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .issues li button:hover:not(:disabled) {
+    background: var(--hover);
+  }
+  .issues li button:disabled {
+    cursor: default;
+    opacity: 1;
+  }
+  .issues .icon {
+    color: var(--warn);
+    flex-shrink: 0;
+  }
+  .issues .err .icon {
+    color: var(--danger);
   }
   .banner {
     display: flex;

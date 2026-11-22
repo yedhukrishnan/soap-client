@@ -2,6 +2,7 @@
   import { onDestroy, onMount, untrack } from "svelte";
   import { currentTheme, modelFor, monaco } from "../lib/monaco";
   import type { EffectiveVar } from "../lib/state.svelte";
+  import type { Issue } from "../lib/types";
 
   interface Props {
     value: string;
@@ -13,8 +14,12 @@
     onSend?: () => void;
     /** When given, {{placeholders}} are highlighted (unknown ones underlined). */
     vars?: Map<string, EffectiveVar>;
+    /** Validation findings shown as squiggles; applied only while the text is still `issuesFor`. */
+    issues?: Issue[];
+    issuesFor?: string;
   }
-  let { value, modelKey, readOnly = false, wordWrap = false, onChange, onSend, vars }: Props = $props();
+  let { value, modelKey, readOnly = false, wordWrap = false, onChange, onSend, vars, issues, issuesFor }: Props =
+    $props();
 
   let el: HTMLDivElement;
   let editor: monaco.editor.IStandaloneCodeEditor | undefined;
@@ -52,6 +57,43 @@
     decorations.set(list);
   }
 
+  const MARKER_OWNER = "soap-validation";
+
+  function mark() {
+    const model = editor?.getModel();
+    if (!model) return;
+    // Results for older text would point at the wrong places; Monaco moves existing
+    // markers along with edits, so keep them until fresh results arrive.
+    if (issuesFor !== undefined && model.getValue() !== issuesFor) return;
+    const markers: monaco.editor.IMarkerData[] = (issues ?? [])
+      .filter((i) => i.start != null && i.end != null)
+      .map((i) => {
+        const s = model.getPositionAt(i.start!);
+        const e = model.getPositionAt(Math.max(i.end!, i.start! + 1));
+        return {
+          severity: i.severity === "error" ? monaco.MarkerSeverity.Error : monaco.MarkerSeverity.Warning,
+          message: i.message,
+          startLineNumber: s.lineNumber,
+          startColumn: s.column,
+          endLineNumber: e.lineNumber,
+          endColumn: e.column,
+        };
+      });
+    monaco.editor.setModelMarkers(model, MARKER_OWNER, markers);
+  }
+
+  /** Select a range (UTF-16 offsets) and scroll it into view. */
+  export function reveal(start: number, end: number) {
+    const model = editor?.getModel();
+    if (!editor || !model) return;
+    const s = model.getPositionAt(start);
+    const e = model.getPositionAt(end);
+    const range = new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column);
+    editor.setSelection(range);
+    editor.revealRangeInCenterIfOutsideViewport(range);
+    editor.focus();
+  }
+
   onMount(() => {
     editor = monaco.editor.create(el, {
       language: "xml",
@@ -75,7 +117,10 @@
       if (!applying) onChange?.(editor!.getValue());
       decorate();
     });
-    editor.onDidChangeModel(() => decorate());
+    editor.onDidChangeModel(() => {
+      decorate();
+      mark();
+    });
     editor.addAction({
       id: "soap.send",
       label: "Send Request",
@@ -111,6 +156,12 @@
   $effect(() => {
     void vars;
     decorate();
+  });
+
+  $effect(() => {
+    void issues;
+    void issuesFor;
+    mark();
   });
 
   onDestroy(() => {

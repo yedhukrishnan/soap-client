@@ -25,6 +25,7 @@ pub fn run() {
             commands::cancel_request,
             commands::run_assertions,
             commands::format_xml,
+            commands::validate_request,
             commands::save_project,
             commands::open_project,
             commands::session_load,

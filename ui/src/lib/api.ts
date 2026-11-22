@@ -1,7 +1,8 @@
 // Typed wrappers around the Tauri commands in src-tauri/src/commands.rs.
 import { invoke } from "@tauri-apps/api/core";
 import type {
-  Assertion, AssertionResult, Project, RequestSpec, ResponseData, SecretBackend, Session, UpdateInfo, VarBinding, WsdlEntry,
+  Assertion, AssertionResult, Issue, Project, RequestSpec, ResponseData, SecretBackend, Session, UpdateInfo, ValidationTarget,
+  VarBinding, WsdlEntry,
 } from "./types";
 
 export const api = {
@@ -12,6 +13,9 @@ export const api = {
   runAssertions: (assertions: Assertion[], response: ResponseData) =>
     invoke<AssertionResult[]>("run_assertions", { assertions, response }),
   formatXml: (xml: string) => invoke<string | null>("format_xml", { xml }),
+  /** `varNames`: names of the defined variables (never values), to spot `{name}` typos. */
+  validateRequest: (body: string, target: ValidationTarget | null, varNames: string[]) =>
+    invoke<Issue[]>("validate_request", { body, target, varNames }),
   saveProject: (path: string, project: Project) => invoke<void>("save_project", { path, project }),
   openProject: (path: string) => invoke<Project>("open_project", { path }),
 

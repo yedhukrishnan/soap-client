@@ -8,6 +8,36 @@ export interface Operation {
   style: "document" | "rpc";
   documentation: string | null;
   sampleRequest: string;
+  /** What the request Body must contain (used for validation). */
+  inputBody: BodyShape;
+}
+
+export interface XmlName {
+  namespace: string;
+  name: string;
+}
+
+export interface BodyShape {
+  rpcWrapper: XmlName | null;
+  parts: { name: string; element: XmlName | null; typeName: XmlName | null }[];
+  encoded: boolean;
+}
+
+/** A validation finding. Offsets are UTF-16 positions in the body (null: not in the body). */
+export interface Issue {
+  severity: "error" | "warning";
+  message: string;
+  start: number | null;
+  end: number | null;
+}
+
+export interface ValidationTarget {
+  wsdlText: string;
+  imports: { location: string; text: string }[];
+  bindingVersion: SoapVersion;
+  operation: Operation;
+  soapVersion: SoapVersion;
+  soapAction: string | null;
 }
 
 export interface Interface {

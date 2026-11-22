@@ -10,6 +10,8 @@ use soap_core::assertions::{Assertion, AssertionResult, evaluate_all};
 use soap_core::http::{RequestSpec, ResponseData};
 use soap_core::project::{self, Project, WsdlEntry};
 use soap_core::session::{self, Session};
+use soap_core::validate::{self, Issue, Target};
+use soap_core::wsdl::{ImportedDoc, Operation, SoapVersion};
 use soap_core::vars::{VarValue, Vars, resolve_spec, secret_values};
 use tauri::{AppHandle, Manager, State};
 use tokio::sync::oneshot;
@@ -67,6 +69,11 @@ pub async fn send_request(
     spec: RequestSpec,
     vars: Vec<VarBinding>,
 ) -> CmdResult<ResponseData> {
+    // Malformed XML is never sent (WSDL conformance problems are only warnings). Checked on
+    // the template: substitution XML-escapes values, so it cannot break well-formedness.
+    if let Some(issue) = validate::check_syntax(&spec.body) {
+        return Err(format!("Request not sent. {}", issue.message));
+    }
     // Only fetch secrets the request actually uses (avoids needless keychain prompts).
     let used = soap_core::vars::references(&serde_json::to_string(&spec).unwrap_or_default());
 
@@ -109,6 +116,36 @@ pub fn run_assertions(assertions: Vec<Assertion>, response: ResponseData) -> Vec
 #[tauri::command]
 pub fn format_xml(xml: String) -> Option<String> {
     soap_core::xml_fmt::pretty_print(&xml)
+}
+
+/// The WSDL operation a request is validated against.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValidationTarget {
+    wsdl_text: String,
+    #[serde(default)]
+    imports: Vec<ImportedDoc>,
+    binding_version: SoapVersion,
+    operation: Operation,
+    soap_version: SoapVersion,
+    #[serde(default)]
+    soap_action: Option<String>,
+}
+
+/// Check a request body: always for well-formedness and placeholder spelling (against the
+/// defined variable *names*), and against the WSDL when a target is given. Runs on the
+/// template, so no variable (or secret) values are involved.
+#[tauri::command]
+pub async fn validate_request(body: String, target: Option<ValidationTarget>, var_names: Option<Vec<String>>) -> Vec<Issue> {
+    let target = target.as_ref().map(|t| Target {
+        wsdl_text: &t.wsdl_text,
+        imports: &t.imports,
+        binding_version: t.binding_version,
+        operation: &t.operation,
+        soap_version: t.soap_version,
+        soap_action: t.soap_action.as_deref(),
+    });
+    validate::validate_request(&body, target.as_ref(), &var_names.unwrap_or_default())
 }
 
 #[tauri::command]

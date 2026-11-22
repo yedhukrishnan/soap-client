@@ -20,6 +20,8 @@ export interface RunState {
 
 const RECENT_KEY = "soap-client.recent";
 const COLLAPSED_KEY = "soap-client.collapsed";
+/** "off" when the user turned off checking requests against the WSDL (on by default). */
+const SPEC_CHECK_KEY = "soap-client.spec-check";
 /** projectId -> project file paths this machine has saved or knowingly opened. */
 const TRUSTED_KEY = "soap-client.trusted-projects";
 const PROJECT_FILTER = [{ name: "SOAP Client project", extensions: ["json"] }];
@@ -92,6 +94,8 @@ class AppState {
   importOpen = $state(false);
   /** Collapsed sidebar groups ("<projectId>|<wsdlId>/<interface>"); a view preference, kept out of the project. */
   collapsed = $state<Record<string, boolean>>(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}"));
+  /** Check requests against their WSDL while editing (a view preference, kept out of the project). */
+  specCheck = $state(localStorage.getItem(SPEC_CHECK_KEY) !== "off");
   /** Id of the request whose "Duplicate" name dialog is open. */
   duplicating = $state<string | null>(null);
   varsOpen = $state(false);
@@ -192,6 +196,11 @@ class AppState {
     if (this.collapsed[k]) delete this.collapsed[k];
     else this.collapsed[k] = true;
     localStorage.setItem(COLLAPSED_KEY, JSON.stringify(this.collapsed));
+  }
+
+  setSpecCheck(on: boolean) {
+    this.specCheck = on;
+    localStorage.setItem(SPEC_CHECK_KEY, on ? "on" : "off");
   }
 
   requestsFor(wsdlId: string, ifaceName: string, opName: string) {
