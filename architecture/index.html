@@ -185,7 +185,7 @@
       <h2>// overview</h2>
       <div class="prose" style="display:grid;gap:14px">
         <p class="big">Import a WSDL, get a request for every operation, send it, check the response.</p>
-        <p style="color:var(--muted)">A <strong style="color:var(--fg)">WSDL</strong> is the XML file that describes a SOAP service. SOAP Client reads it, along with every schema it imports, and writes a ready-to-edit sample request for each operation. You fill in values, press Send, and the response comes back with automatic checks: status code, XPath, no SOAP Fault, response time. While you edit, the request is checked against the WSDL and its schemas. Around that loop sit environments and <code>{{variables}}</code>, HTTP Basic and WS-Security, secrets in the system keychain, autosave, shareable project files, and light and dark themes.</p>
+        <p style="color:var(--muted)">A <strong style="color:var(--fg)">WSDL</strong> is the XML file that describes a SOAP service. SOAP Client reads it, along with every schema it imports, and writes a ready-to-edit sample request for each operation. You fill in values, press Send, and the response comes back with automatic checks: status code, XPath, no SOAP Fault, response time. While you edit, the request is checked against the WSDL and its schemas. Around that loop sit environments and <code>{{variables}}</code>, HTTP Basic and WS-Security, secrets in the system keychain, autosave and shareable project files.</p>
       </div>
       <figure class="shot">
         <img src="../assets/screenshots/request-response.jpg" width="1800" height="1089" loading="lazy"
@@ -202,7 +202,7 @@
         <div class="layer ui">
           <div class="lh"><h3>Interface · Svelte 5 in the system webview</h3><span>ui/src/</span></div>
           <div class="boxes">
-            <div class="box"><b>App.svelte</b><span>Window layout, resizable panes, menu events, autosave, theme</span></div>
+            <div class="box"><b>App.svelte</b><span>Window layout, resizable panes, menu events, autosave</span></div>
             <div class="box"><b>components/*</b><span>Sidebar, request and response panes, auth, headers, assertions, dialogs</span></div>
             <div class="box"><b>XmlEditor · monaco.ts</b><span>VS Code's editor, one model per tab for separate undo, validation markers</span></div>
             <div class="box"><b>lib/state.svelte.ts</b><span>All app state: project, tabs, environments, dirty flag</span></div>
@@ -216,7 +216,7 @@
             <div class="box"><b>lib.rs</b><span>Starts Tauri; registers plugins, state and 20 commands</span></div>
             <div class="box"><b>commands.rs</b><span>Validates input, resolves variables, handles cancel</span></div>
             <div class="box"><b>secrets.rs</b><span>Owns the keychain. Set, delete, check; never returns a value</span></div>
-            <div class="box"><b>menu.rs · appearance.rs</b><span>Native menu bar, forwarded to the UI as events; Light, Dark or System</span></div>
+            <div class="box"><b>menu.rs</b><span>Native menu bar, forwarded to the UI as events</span></div>
             <div class="box"><b>updates.rs</b><span>Daily update check, skip version, open releases</span></div>
           </div>
         </div>
@@ -241,7 +241,7 @@
             <div class="box"><b>WSDL / XSD hosts</b><span>Where service descriptions come from</span></div>
             <div class="box"><b>macOS Keychain</b><span>Touch ID protected in signed builds</span></div>
             <div class="box"><b>Secret Service</b><span>GNOME Keyring, KWallet, KeePassXC</span></div>
-            <div class="box"><b>App data folder</b><span>session.json, secret-index.json, updates.json, appearance.json</span></div>
+            <div class="box"><b>App data folder</b><span>session.json, secret-index.json, updates.json</span></div>
             <div class="box"><b>latest.json</b><span>Static file on this site naming the newest version</span></div>
           </div>
         </div>
@@ -429,9 +429,8 @@
             <tr><td>session.json</td><td>App data folder</td><td>Autosave of the project, open tabs and selection.</td></tr>
             <tr><td>secret-index.json</td><td>App data folder</td><td>Names of keys that have a stored secret. No values.</td></tr>
             <tr><td>updates.json</td><td>App data folder</td><td>Last check, auto-check setting, skipped version.</td></tr>
-            <tr><td>appearance.json</td><td>App data folder</td><td>Light, Dark or System.</td></tr>
             <tr><td>Keychain vault</td><td>Service <code>dev.soapclient.app</code></td><td>One item per project holding its secrets.</td></tr>
-            <tr><td>localStorage</td><td>Inside the webview</td><td>Pane sizes, recent files, collapsed tree nodes, trusted project paths, the Validate toggle, a copy of the appearance choice for a flicker-free start.</td></tr>
+            <tr><td>localStorage</td><td>Inside the webview</td><td>Pane sizes, recent files, collapsed tree nodes, trusted project paths, the Validate toggle.</td></tr>
           </tbody>
         </table>
       </div>
