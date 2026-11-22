@@ -40,19 +40,35 @@
 </div>
 
 <style>
+  /* Tabs are always 36px tall; when they overflow, a thin scrollbar is added below them
+     instead of taking its height out of the tabs. */
   .tabbar {
     display: flex;
-    align-items: stretch;
-    height: 36px;
+    align-items: flex-start;
     border-bottom: 1px solid var(--border);
     background: var(--bg-side);
     overflow-x: auto;
     overflow-y: hidden;
     flex-shrink: 0;
   }
+  .tabbar::-webkit-scrollbar {
+    height: 5px;
+  }
+  .tabbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .tabbar::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 3px;
+  }
+  .tabbar::-webkit-scrollbar-thumb:hover {
+    background: var(--muted);
+  }
   .tab {
     display: flex;
     align-items: center;
+    height: 36px;
+    flex-shrink: 0;
     gap: 6px;
     padding: 0 6px 0 12px;
     border-right: 1px solid var(--border);
@@ -91,6 +107,8 @@
     color: var(--fg);
   }
   .plus {
+    height: 36px;
+    flex-shrink: 0;
     padding: 0 14px;
     color: var(--muted);
     font-size: 16px;
