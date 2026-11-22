@@ -257,7 +257,7 @@
           <thead><tr><th>piece</th><th>layer</th><th>used for</th><th>why this one</th></tr></thead>
           <tbody>
             <tr><td>Rust</td><td><span class="l core">core</span> <span class="l shell">shell</span></td><td>All logic that isn't drawing the UI</td><td>A small, fast native binary with no runtime to install. The compiler rules out null errors, data races and memory bugs, which matters for code that parses untrusted XML.</td></tr>
-            <tr><td>Tauri 2</td><td><span class="l shell">shell</span></td><td>Window, menus, dialogs, IPC, packaging</td><td>Uses the webview the OS already has instead of bundling Chromium like Electron, so the download is 18 MB, not 100+. The page can only call what it's explicitly allowed to.</td></tr>
+            <tr><td>Tauri 2</td><td><span class="l shell">shell</span></td><td>Window, menus, dialogs, IPC, packaging</td><td>Uses the webview the OS already has instead of bundling Chromium like Electron, so downloads are a fraction of the size. The page can only call what it's explicitly allowed to.</td></tr>
             <tr><td>Svelte 5</td><td><span class="l ui">ui</span></td><td>The interface</td><td>Compiles to plain JavaScript with no virtual DOM. Runes (<code>$state</code>, <code>$effect</code>) make one shared state object reactive.</td></tr>
             <tr><td>TypeScript</td><td><span class="l ui">ui</span></td><td>All UI code</td><td><code>types.ts</code> mirrors the Rust structs, so a mismatched command is caught at build time.</td></tr>
             <tr><td>Vite</td><td><span class="l ui">ui</span></td><td>Dev server, bundler</td><td>Tauri's recommended tool. Hot reload during development; targets Safari 16 to match the macOS webview.</td></tr>
