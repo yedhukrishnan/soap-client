@@ -31,9 +31,10 @@ KWallet or KeePassXC must be running; without one they are kept only until the a
 - **Light and dark themes:** follows your system, or choose one under View → Appearance.
 
 <p>
-  <img src="docs/screenshots/environments.png" width="32%" alt="The Variables & Environments dialog">
-  <img src="docs/screenshots/response-view.png" width="32%" alt="A pretty-printed SOAP response">
-  <img src="docs/screenshots/welcome.png" width="32%" alt="The welcome screen">
+  <img src="docs/screenshots/validation.png" width="49%" alt="A mistyped variable underlined in the request editor, with its warning shown on hover">
+  <img src="docs/screenshots/environments.png" width="49%" alt="The Variables & Environments dialog">
+  <img src="docs/screenshots/response-view.png" width="49%" alt="A pretty-printed SOAP response">
+  <img src="docs/screenshots/welcome.png" width="49%" alt="The welcome screen">
 </p>
 
 ## Building from source
